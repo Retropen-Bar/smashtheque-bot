@@ -1,6 +1,7 @@
 from .smashtheque import Smashtheque
 
 
-def setup(bot):
+async def setup(bot):
     n = Smashtheque(bot)
+    await n.initialize()
     bot.add_cog(n)

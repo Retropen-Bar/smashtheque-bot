@@ -39,18 +39,23 @@ def format_emojis(id_list):
     return end
 
 class Smashtheque(commands.Cog):
-    def __init__(self, bot: Red):
-        headers={"Authorization": "Bearer e356371d3bef1786504a7c88552e177c", "Content-Type": "application/json"}
+
+    async def initialize(self):
+        bearer = await self.bot.get_shared_api_tokens("smashtheque")
+        bearer = bearer["bearer"]
+        headers={f"Authorization": "Bearer {bearer}", "Content-Type": "application/json"}
         self._session = aiohttp.ClientSession(headers=headers)
+
+    def __init__(self, bot: Red):
         self.bot = bot
+
     def cog_unload(self):
         asyncio.create_task(self._session.close())
 
 
     @commands.command()
-    @commands.is_owner()
     async def test3s(self, ctx):
-        async with self._session.post(urls["players"], data={'player': {'name': 'red', 'character_ids': [26], 'creator_discord_id': '332894758076678144', 'team_id': 18, 'city_id': 24}}) as r:
+        async with self._session.post(urls["players"], data=json.dumps({'player': {'name': 'red', 'character_ids': [26], 'creator_discord_id': '332894758076678144', 'team_id': 18, 'city_id': 24}}), headers={'content-type': 'application/json'}) as r:
             print(r.status)
 
     @commands.command(usage="<pseudo> <emotes de persos> [team] [ville] [id discord]")
