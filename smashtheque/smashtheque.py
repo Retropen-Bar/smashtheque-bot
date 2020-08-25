@@ -43,7 +43,7 @@ class Smashtheque(commands.Cog):
     async def initialize(self):
         bearer = await self.bot.get_shared_api_tokens("smashtheque")
         bearer = bearer["bearer"]
-        headers={f"Authorization": "Bearer {bearer}", "Content-Type": "application/json"}
+        headers={"Authorization": f"Bearer {bearer}", "Content-Type": "application/json"}
         self._session = aiohttp.ClientSession(headers=headers)
 
     def __init__(self, bot: Red):
