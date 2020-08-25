@@ -195,8 +195,5 @@ class Smashtheque(commands.Cog):
                     return
         response["creator_discord_id"] = str(ctx.author.id)
         response = {"player": response}
-        response_json = json.dumps(response)
-        """response_json = json.JSONEncoder().encode(response)"""
-        async with self._session.post(urls["players"], json=response_json) as r:
+        async with self._session.post(urls["players"], json=response) as r:
             print(r)
-        print(response_json)
