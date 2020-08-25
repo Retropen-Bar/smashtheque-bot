@@ -31,6 +31,7 @@ async def yeet(ctx, erreur):
 
 
 async def id_to_name(id_find, url, self):
+    """obsolète transformer une id arbitraire en string human freindly"""
     async with self._session.get(urls[url]) as r:
         result = await r.json()
         non_conflict_name_list = loop_dict(result, "id", id_find)
@@ -38,12 +39,14 @@ async def id_to_name(id_find, url, self):
 
 
 def loop_dict(dict_to_use, value, parameter):
+    """trouver une entrée dans un dictionnaire"""
     for sub in dict_to_use:
         if sub[value] == parameter:
             return sub
 
 
 def format_emojis(id_list):
+    """transformer des émoji id en émojis discord"""
     end = []
     for i in id_list:
         end.append("<:placeholder:{i}>")
@@ -90,20 +93,25 @@ class Smashtheque(commands.Cog):
     async def apite(self, ctx, *, arg):
         """cette commande va vous permettre d'ajouter un joueur dans la base de données de smashthèque.\n\nVous devez ajouter au minimum le pseudo et les persos joués dans l'ordre.\n\nVous pouvez aussi ajouter sa team, sa ville, et si il possède un compte discord, son id pour qu'il puisse modifier lui-même son compte.\n\nVous pouvez récupérer l'id avec les options de developpeur (activez-les dans l'onglet Apparence des paramètres de l'utilisateur, puis faites un clic droit sur l'utilisateur et sélectionnez \"Copier ID\".)\n\n\nExamples : \n- !placeholder Pixel <:Yoshi:737480513744273500> <:Bowser:747063692658737173>\n- !placeholder red <:Joker:742166628598284359> LoS Paris 332894758076678144\n"""
         print(arg)
+        """
+        current_stage représente l'argument a process. 
+        0 = le nom
+        1 = les émojis de perso
+        2 = la team
+        3 = la ville
+        4 = l'id discord
+        """
         current_stage = 0
         alts = []
-        if re.search(r"<a?:(\w+):(\d+)>", arg) == None:
-            await yeet(
-                ctx,
-                "Veuillez rentrer les personnages utilisés par le joueur grâce aux émojis de personnages du serveur",
-            )
-            return
+        #init de la réponse
         response = {"name": "", "character_ids": [], "creator_discord_id": ""}
+        #process chaque arguments individuelement
         x = arg.split()
         loop = 1
         for argu in x:
             if current_stage == 0:
                 if re.search(r"<a?:(\w+):(\d+)>", argu) != None:
+                    #regex les émojis discord
                     if loop == 1:
                         await yeet(
                             ctx, "Veuillez commencer par donner le nom du joueur."
@@ -112,6 +120,7 @@ class Smashtheque(commands.Cog):
                     else:
                         current_stage = 1
                         async with self._session.get(urls["characters"]) as r:
+                            #associer les ID des émojis input aux id de personnages 
                             print(await r.json())
                             result = await r.json()
                             emoji_dict = {}
@@ -128,13 +137,16 @@ class Smashtheque(commands.Cog):
                             response["character_ids"].append(emoji_dict["id"])
                             continue
                 else:
+                    #parse le nom qui peut contenir des espaces
                     response["name"] = response["name"] + argu
                     loop += 1
                     continue
             elif current_stage == 1:
+                #test si il reste des emojis a process dans les arguments
                 if re.search(r"<a?:(\w+):(\d+)>", argu) == None:
                     current_stage = 2
                     continue
+                #associer les ID des émojis input aux id de personnages si plus d'un perso est input
                 else:
                     for sub in result:
                         if sub["emoji"] == re.search(r"[0-9]+", argu).group():
@@ -147,7 +159,9 @@ class Smashtheque(commands.Cog):
                         return
                     response["character_ids"].append(emoji_dict["id"])
                     continue
+            #parse la team si il y en a une
             if current_stage == 2:
+                #check si l'argu est une id discord
                 if argu.isdigit() == True and len(str(argu)) == 18:
                     response["discord_id"] = str(argu)
                     break
@@ -158,6 +172,7 @@ class Smashtheque(commands.Cog):
                             response["team_id"] = i["id"]
                             break
                     if "team_id" not in response:
+                        #check si une ville est trouvé si aucune team l'est
                         async with self._session.get(urls["cities"]) as r:
                             result = await r.json()
                             for i in result:
@@ -176,6 +191,7 @@ class Smashtheque(commands.Cog):
                 current_stage = 3
                 continue
             elif current_stage == 3:
+                #pareil, id discord
                 if argu.isdigit() == True and len(str(argu)) == 18:
                     response["discord_id"] = str(argu)
                     break
@@ -203,6 +219,7 @@ class Smashtheque(commands.Cog):
                     )
                     return
             loop += 1
+        #verifier que plusieurs personnes n'aient pas le même pseudo (obsolète, a changer)
         async with self._session.get(urls["players"]) as r:
             print(await r.json())
             result = await r.json()
@@ -226,10 +243,10 @@ class Smashtheque(commands.Cog):
                     )
                     alts_team = await id_to_name(users["team_id"], "teams", self)
                     if alts_team != None:
-                        formated_player = formated_player + ", Team : {alts_team}"
+                        formated_player = formated_player + f", Team : {alts_team}"
                     alts_ville = await id_to_name(users["city_id"], "cities", self)
                     if alts_ville != None:
-                        formated_player = formated_player + ", Ville : {alts_ville}"
+                        formated_player = formated_player + f", Ville : {alts_ville}"
                     embed.add_field(
                         name="pseudo : {0}".format(users["name"]), value=formated_player
                     )
