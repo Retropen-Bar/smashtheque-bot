@@ -1,5 +1,6 @@
 from redbot.core import commands
-from redbot.core.utils.predicates import MessagePredicate
+from redbot.core.utils.predicates import ReactionPredicate
+from redbot.core.utils.menus import start_adding_reactions
 import discord
 import asyncio
 import aiohttp
@@ -7,6 +8,7 @@ from redbot.core.bot import Red
 from typing import Optional
 import re
 import json
+import rollbar
 
 urls = {
     "characters": "https://retropen-base.herokuapp.com/api/v1/characters",
@@ -48,13 +50,53 @@ def loop_dict(dict_to_use, value, parameter):
 def format_emojis(id_list):
     """transformer des émoji id en émojis discord"""
     end = []
+    print(id_list)
     for i in id_list:
-        end.append("<:placeholder:{i}>")
+        print(i)
+        end.append(f"<:placeholder:{i}>")
     return end
+
+
+class Map(dict):
+    """
+    Example:
+    m = Map({'first_name': 'Eduardo'}, last_name='Pool', age=24, sports=['Soccer'])
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(Map, self).__init__(*args, **kwargs)
+        for arg in args:
+            if isinstance(arg, dict):
+                for k, v in arg.items():
+                    self[k] = v
+
+        if kwargs:
+            for k, v in kwargs.items():
+                self[k] = v
+
+    def __getattr__(self, attr):
+        return self.get(attr)
+
+    def __setattr__(self, key, value):
+        self.__setitem__(key, value)
+
+    def __setitem__(self, key, value):
+        super(Map, self).__setitem__(key, value)
+        self.__dict__.update({key: value})
+
+    def __delattr__(self, item):
+        self.__delitem__(item)
+
+    def __delitem__(self, key):
+        super(Map, self).__delitem__(key)
+        del self.__dict__[key]
 
 
 class Smashtheque(commands.Cog):
     async def initialize(self):
+        rollbar_token = await self.bot.get_shared_api_tokens("smashtheque")
+        rollbar_token = rollbar_token["token"]
+        rollbar.init(rollbar_token)
         bearer = await self.bot.get_shared_api_tokens("smashtheque")
         bearer = bearer["bearer"]
         headers = {
@@ -103,15 +145,15 @@ class Smashtheque(commands.Cog):
         """
         current_stage = 0
         alts = []
-        #init de la réponse
+        # init de la réponse
         response = {"name": "", "character_ids": [], "creator_discord_id": ""}
-        #process chaque arguments individuelement
+        # process chaque arguments individuelement
         x = arg.split()
         loop = 1
         for argu in x:
             if current_stage == 0:
                 if re.search(r"<a?:(\w+):(\d+)>", argu) != None:
-                    #regex les émojis discord
+                    # regex les émojis discord
                     if loop == 1:
                         await yeet(
                             ctx, "Veuillez commencer par donner le nom du joueur."
@@ -120,8 +162,7 @@ class Smashtheque(commands.Cog):
                     else:
                         current_stage = 1
                         async with self._session.get(urls["characters"]) as r:
-                            #associer les ID des émojis input aux id de personnages 
-                            print(await r.json())
+                            # associer les ID des émojis input aux id de personnages
                             result = await r.json()
                             emoji_dict = {}
                             for sub in result:
@@ -137,16 +178,16 @@ class Smashtheque(commands.Cog):
                             response["character_ids"].append(emoji_dict["id"])
                             continue
                 else:
-                    #parse le nom qui peut contenir des espaces
+                    # parse le nom qui peut contenir des espaces
                     response["name"] = response["name"] + argu
                     loop += 1
                     continue
             elif current_stage == 1:
-                #test si il reste des emojis a process dans les arguments
+                # test si il reste des emojis a process dans les arguments
                 if re.search(r"<a?:(\w+):(\d+)>", argu) == None:
                     current_stage = 2
                     continue
-                #associer les ID des émojis input aux id de personnages si plus d'un perso est input
+                # associer les ID des émojis input aux id de personnages si plus d'un perso est input
                 else:
                     for sub in result:
                         if sub["emoji"] == re.search(r"[0-9]+", argu).group():
@@ -159,9 +200,9 @@ class Smashtheque(commands.Cog):
                         return
                     response["character_ids"].append(emoji_dict["id"])
                     continue
-            #parse la team si il y en a une
+            # parse la team si il y en a une
             if current_stage == 2:
-                #check si l'argu est une id discord
+                # check si l'argu est une id discord
                 if argu.isdigit() == True and len(str(argu)) == 18:
                     response["discord_id"] = str(argu)
                     break
@@ -172,7 +213,7 @@ class Smashtheque(commands.Cog):
                             response["team_id"] = i["id"]
                             break
                     if "team_id" not in response:
-                        #check si une ville est trouvé si aucune team l'est
+                        # check si une ville est trouvé si aucune team l'est
                         async with self._session.get(urls["cities"]) as r:
                             result = await r.json()
                             for i in result:
@@ -191,7 +232,7 @@ class Smashtheque(commands.Cog):
                 current_stage = 3
                 continue
             elif current_stage == 3:
-                #pareil, id discord
+                # pareil, id discord
                 if argu.isdigit() == True and len(str(argu)) == 18:
                     response["discord_id"] = str(argu)
                     break
@@ -219,48 +260,69 @@ class Smashtheque(commands.Cog):
                     )
                     return
             loop += 1
-        #verifier que plusieurs personnes n'aient pas le même pseudo (obsolète, a changer)
-        async with self._session.get(urls["players"]) as r:
-            print(await r.json())
-            result = await r.json()
-            alts.append(loop_dict(result, "name", response["name"]))
-            print(alts)
-            if alts != [None]:
-                embed = discord.Embed(
-                    title="une ou plusieurs personnes possèdent le même pseudo que la personne que vous souhaitez ajouter. ",
-                    colour=discord.Colour(0xA54C4C),
-                )
-                for users in alts:
-                    async with self._session.get(urls["characters"]) as r:
-                        result = await r.json()
-                        alts_emojis = []
-                        print(users)
-                        for i in users["character_ids"]:
-                            characters_result = loop_dict(result, "id", i)
-                            alts_emojis.append(characters_result["emoji"])
-                    formated_player = "personnages : {0}".format(
-                        format_emojis(str(alts_emojis))
-                    )
-                    alts_team = await id_to_name(users["team_id"], "teams", self)
-                    if alts_team != None:
-                        formated_player = formated_player + f", Team : {alts_team}"
-                    alts_ville = await id_to_name(users["city_id"], "cities", self)
-                    if alts_ville != None:
-                        formated_player = formated_player + f", Ville : {alts_ville}"
-                    embed.add_field(
-                        name="pseudo : {0}".format(users["name"]), value=formated_player
-                    )
-                pred = MessagePredicate.yes_or_no(ctx)
-                temp_message = await ctx.send(embed=embed)
-                try:
-                    await self.bot.wait_for(temp_message, timeout=60.0, check=pred)
-                except asyncio.TimeoutError:
-                    await ctx.send("Commande annulé")
-                if pred.result is True:
-                    temp_message.delete()
-                    return
+        # verifier que plusieurs personnes n'aient pas le même pseudo (obsolète, a changer)
         response["creator_discord_id"] = str(ctx.author.id)
         response = {"player": response}
         async with self._session.post(urls["players"], json=response) as r:
-            print(r)
-        print(response)
+            if r.status == 422:
+                result = await r.json()
+                erreur = Map(result)
+                print(erreur.errors["name"])
+                if erreur.errors["name"] == "already_known":
+                    for i in erreur.errors["existing_ids"]:
+                        player_url = urls["players"]
+                        player_url += "/"
+                        player_url += str(i)
+                        async with self._session.get(player_url) as r:
+                            print(await r.json())
+                            result = await r.json()
+                            alts.append(result)
+                            print(alts)
+                    embed = discord.Embed(
+                        title="une ou plusieurs personnes possèdent le même pseudo que la personne que vous souhaitez ajouter. ",
+                        colour=discord.Colour(0xA54C4C),
+                    )
+                    for users in alts:
+                        alts_emojis = []
+                        users = Map(users)
+                        for chars in users.characters:
+                            alts_emojis.append(chars["emoji"])
+                        personnages_ = format_emojis(alts_emojis)
+                        formated_player = "\u200b"
+                        perso = str(*personnages_)
+                        if users.team != None:
+                            formated_player = formated_player + "Team : {0}".format(
+                                users.team["name"]
+                            )
+                        if users.city != None:
+                            formated_player = formated_player + " Ville : {0}".format(
+                                users.city["name"]
+                            )
+                        embed.add_field(
+                            name=f"pseudo : {users.name}", value=formated_player, inline=True
+                        )
+                        embed.add_field(name="personnages :", value=perso, inline=False)
+                    temp_message = await ctx.send(embed=embed)
+                    pred = ReactionPredicate.yes_or_no(temp_message, ctx.author)
+                    start_adding_reactions(
+                        temp_message, ReactionPredicate.YES_OR_NO_EMOJIS
+                    )
+                    try:
+                        await self.bot.wait_for(
+                            "reaction_add", timeout=60.0, check=pred
+                        )
+                    except asyncio.TimeoutError:
+                        await ctx.send("Commande annulé")
+                    if pred.result is True:
+                        await temp_message.delete()
+                        response["is_accepted"] = True,
+                        await self._session.post(urls["players"], json=response)
+                    else:
+                        await ctx.send("Commande annulé")
+                        await temp_message.delete()
+                        return
+                else:
+                    yeet(
+                        ctx,
+                        "t'a cassé le bot, GG. tu peut contacter red#4356 ou Pixel#3291 s'il te plait ?",
+                    )
