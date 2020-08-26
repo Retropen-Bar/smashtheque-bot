@@ -326,3 +326,6 @@ class Smashtheque(commands.Cog):
                         ctx,
                         "t'a cassé le bot, GG. tu peut contacter red#4356 ou Pixel#3291 s'il te plait ?",
                     )
+                    rollbar.report_exc_info(sys.exc_info(), erreur)
+                    return
+                    
