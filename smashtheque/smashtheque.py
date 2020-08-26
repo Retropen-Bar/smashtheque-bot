@@ -9,6 +9,9 @@ from typing import Optional
 import re
 import json
 import rollbar
+import sys
+from collections.abc import Mapping
+from collections import UserDict
 
 urls = {
     "characters": "https://retropen-base.herokuapp.com/api/v1/characters",
@@ -57,39 +60,12 @@ def format_emojis(id_list):
     return end
 
 
-class Map(dict):
-    """
-    Example:
-    m = Map({'first_name': 'Eduardo'}, last_name='Pool', age=24, sports=['Soccer'])
-    """
-
-    def __init__(self, *args, **kwargs):
-        super(Map, self).__init__(*args, **kwargs)
-        for arg in args:
-            if isinstance(arg, dict):
-                for k, v in arg.items():
-                    self[k] = v
-
-        if kwargs:
-            for k, v in kwargs.items():
-                self[k] = v
-
+class Map(UserDict):
     def __getattr__(self, attr):
-        return self.get(attr)
-
-    def __setattr__(self, key, value):
-        self.__setitem__(key, value)
-
-    def __setitem__(self, key, value):
-        super(Map, self).__setitem__(key, value)
-        self.__dict__.update({key: value})
-
-    def __delattr__(self, item):
-        self.__delitem__(item)
-
-    def __delitem__(self, key):
-        super(Map, self).__delitem__(key)
-        del self.__dict__[key]
+        val = self.data[attr]
+        if isinstance(val, Mapping):
+            return Map(val)
+        return val
 
 
 class Smashtheque(commands.Cog):
@@ -300,7 +276,8 @@ class Smashtheque(commands.Cog):
                         embed.add_field(
                             name=f"pseudo : {users.name}", value=formated_player, inline=True
                         )
-                        embed.add_field(name="personnages :", value=perso, inline=False)
+                        embed.add_field(name="personnages :", value=perso, inline=True)
+                        embed.add_field(name="\u200b", value="\u200b", inline=False)
                     temp_message = await ctx.send(embed=embed)
                     pred = ReactionPredicate.yes_or_no(temp_message, ctx.author)
                     start_adding_reactions(
@@ -314,8 +291,10 @@ class Smashtheque(commands.Cog):
                         await ctx.send("Commande annulé")
                     if pred.result is True:
                         await temp_message.delete()
-                        response["is_accepted"] = True,
-                        await self._session.post(urls["players"], json=response)
+                        response["player"]["name_confirmation"] = True
+                        print(response)
+                        async with self._session.post(urls["players"], json=response) as r:
+                            print(r)
                     else:
                         await ctx.send("Commande annulé")
                         await temp_message.delete()
@@ -327,4 +306,106 @@ class Smashtheque(commands.Cog):
                     )
                     rollbar.report_exc_info(sys.exc_info(), erreur)
                     return
-                    
+        embed = discord.Embed(
+        title=f"\"iI guess it's done\". Le joueur a été ajouté à la base de données.",
+        colour=discord.Colour(0xA54C4C),
+        )
+        await ctx.send(embed=embed)
+    @commands.command()
+    @commands.admin_or_permissions(administrator=True)
+    async def claim(self, ctx, *, pseudo):
+        player_url = "{0}?by_name_like={1}".format(urls["players"], pseudo)
+        async with self._session.get(player_url) as r:
+            result = await r.json()
+        if len(result) == 1:
+            users = result[0]
+            embed = discord.Embed(
+                title="joueur trouvé :",
+                colour=discord.Colour(0xA54C4C),
+            )
+            alts_emojis = []
+            users = Map(users)
+            for chars in users.characters:
+                alts_emojis.append(chars["emoji"])
+            personnages_ = format_emojis(alts_emojis)
+            formated_player = "\u200b"
+            perso = str(*personnages_)
+            if users.team != None:
+                formated_player = formated_player + "Team : {0}".format(
+                    users.team["name"]
+                )
+            if users.city != None:
+                formated_player = formated_player + " Ville : {0}".format(
+                    users.city["name"]
+                )
+            embed.add_field(
+                name=f"pseudo : {users.name}", value=formated_player, inline=True
+            )
+            embed.add_field(name="personnages :", value=perso, inline=True)
+            embed.add_field(name="\u200b", value="\u200b", inline=False)
+            temp_message = await ctx.send(embed=embed)
+            pred = ReactionPredicate.yes_or_no(temp_message, ctx.author)
+            start_adding_reactions(
+                temp_message, ReactionPredicate.YES_OR_NO_EMOJIS
+            )
+            try:
+                await self.bot.wait_for(
+                    "reaction_add", timeout=60.0, check=pred
+                )
+            except asyncio.TimeoutError:
+                await ctx.send("Commande annulé")
+            if pred.result is True:
+                await temp_message.delete()
+                player_url = "{0}/{1}".format(urls["players"], users.id)
+                response = {"player": {"discord_id": str(ctx.author.id)}}
+                print(player_url)
+                print(response)
+                async with self._session.patch(player_url, json=response) as r:
+                    print(r)
+        else:        
+            embed = discord.Embed(
+                title="Plusieurs personnes possèdent le même pseudo.\nChoisissez le bon joueur dans la liste ci dessous grâce aux réactions",
+                colour=discord.Colour(0xA54C4C),
+            )
+            for users in result:
+                alts_emojis = []
+                users = Map(users)
+                for chars in users.characters:
+                    alts_emojis.append(chars["emoji"])
+                personnages_ = format_emojis(alts_emojis)
+                formated_player = "\u200b"
+                perso = str(*personnages_)
+                if users.team != None:
+                    formated_player = formated_player + "Team : {0}".format(
+                        users.team["name"]
+                    )
+                if users.city != None:
+                    formated_player = formated_player + " Ville : {0}".format(
+                        users.city["name"]
+                    )
+                embed.add_field(
+                    name=f"pseudo : {users.name}", value=formated_player, inline=True
+                )
+                embed.add_field(name="personnages :", value=perso, inline=True)
+                embed.add_field(name="\u200b", value="\u200b", inline=False)
+            temp_message = await ctx.send(embed=embed)
+            emojis = ReactionPredicate.NUMBER_EMOJIS[1:len(result) + 1]
+            start_adding_reactions(temp_message, emojis)
+            pred = ReactionPredicate.with_emojis(emojis, temp_message)
+            try:
+                await ctx.bot.wait_for("reaction_add", timeout=60.0, check=pred)
+            except asyncio.TimeoutError:
+                await ctx.send("Commande annulé")
+            if type(pred.result) == int:
+                await temp_message.delete()
+                player_url = "{0}/{1}".format(urls["players"], result[pred.result]["id"])
+                response = {"player": {"discord_id": str(ctx.author.id)}}
+                print(player_url)
+                print(response)
+                async with self._session.patch(player_url, json=response) as r:
+                    print(r)
+                embed = discord.Embed(
+                title=f"\"iI guess it's done\". Votre compte discord est maintenant lié avec le joueur nommé {pseudo}.",
+                colour=discord.Colour(0xA54C4C),
+                )
+                await ctx.send(embed=embed)
