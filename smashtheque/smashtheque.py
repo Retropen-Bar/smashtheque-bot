@@ -131,7 +131,6 @@ class Smashtheque(commands.Cog):
             print(r.status)
 
     @commands.command(usage="<pseudo> <emotes de persos> [team] [ville] [id discord]")
-    @commands.is_owner()
     async def apite(self, ctx, *, arg):
         """cette commande va vous permettre d'ajouter un joueur dans la base de données de smashthèque.\n\nVous devez ajouter au minimum le pseudo et les persos joués dans l'ordre.\n\nVous pouvez aussi ajouter sa team, sa ville, et si il possède un compte discord, son id pour qu'il puisse modifier lui-même son compte.\n\nVous pouvez récupérer l'id avec les options de developpeur (activez-les dans l'onglet Apparence des paramètres de l'utilisateur, puis faites un clic droit sur l'utilisateur et sélectionnez \"Copier ID\".)\n\n\nExamples : \n- !placeholder Pixel <:Yoshi:737480513744273500> <:Bowser:747063692658737173>\n- !placeholder red <:Joker:742166628598284359> LoS Paris 332894758076678144\n"""
         print(arg)
