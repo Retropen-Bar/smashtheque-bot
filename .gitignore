@@ -1,3 +1,3 @@
-redbot.env
-/data
+/docker/redbot.env
+__pycache__
 .DS_Store
