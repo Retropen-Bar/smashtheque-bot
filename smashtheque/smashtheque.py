@@ -72,6 +72,30 @@ def format_emojis(id_list):
     return end
 
 
+def embed_player(embed, _player):
+    player = Map(_player)
+
+    alts_emojis = []
+    for character in player.characters:
+        alts_emojis.append(character["emoji"])
+    personnages = format_emojis(alts_emojis)
+    formated_player = "\u200b"
+
+    if player.team != None:
+        formated_player = formated_player + "Team : {0}".format(
+            player.team["name"]
+        )
+
+    if player.city != None:
+        formated_player = formated_player + " Ville : {0}".format(
+            player.city["name"]
+        )
+
+    embed.add_field(name=player.name, value=formated_player, inline=True)
+    embed.add_field(name=personnages, value="\u200b", inline=True)
+    embed.add_field(name="\u200b", value="\u200b", inline=False)
+
+
 class Map(UserDict):
     def __getattr__(self, attr):
         val = self.data[attr]
@@ -88,6 +112,7 @@ class Smashtheque(commands.Cog):
         else:
             api_base_url = await self.bot.get_shared_api_tokens("smashtheque")
             api_base_url = api_base_url["url"]
+        print(f"Smashthèque API base URL set to {api_base_url}")
         if os.environ['ROLLBAR_TOKEN']:
             rollbar_token = os.environ['ROLLBAR_TOKEN']
         else:
@@ -198,22 +223,10 @@ class Smashtheque(commands.Cog):
                             response["team_id"] = i["id"]
                             break
                     if "team_id" not in response:
-                        # check si une ville est trouvé si aucune team l'est
-                        async with self._session.get(api_url("cities")) as r:
-                            result = await r.json()
-                            for i in result:
-                                if i["name"].lower() == argu.lower():
-                                    response["city_id"] = i["id"]
-                                    break
-                        if "city_id" not in response:
-                            await yeet(
-                                ctx,
-                                "Veuillez entrer un nom de team correct.\nPour ça, utilisez son tag.\nExample : `LoS` ou `R-B`",
-                            )
-                            return
-                        else:
-                            current_stage = 4
-                            continue
+                        # aucune team trouvée pour ce nom, on considère que c'est une ville
+                        response["city_name"] = argu
+                        current_stage = 4
+                        continue
                 current_stage = 3
                 continue
             elif current_stage == 3:
@@ -260,26 +273,7 @@ class Smashtheque(commands.Cog):
                     )
                     embed.set_footer(text="Réagissez avec ✅ pour confirmer et créer un nouveau joueur, ou\nréagissez avec ❎ pour annuler.")
                     for users in alts:
-                        alts_emojis = []
-                        users = Map(users)
-                        for chars in users.characters:
-                            alts_emojis.append(chars["emoji"])
-                        personnages = format_emojis(alts_emojis)
-                        formated_player = "\u200b"
-                        perso = str(personnages)
-                        if users.team != None:
-                            formated_player = formated_player + "Team : {0}".format(
-                                users.team["name"]
-                            )
-                        if users.city != None:
-                            formated_player = formated_player + " Ville : {0}".format(
-                                users.city["name"]
-                            )
-                        embed.add_field(
-                            name=f"pseudo : {users.name}", value=formated_player, inline=True
-                        )
-                        embed.add_field(name=personnages, value="\u200b", inline=True)
-                        embed.add_field(name="\u200b", value="\u200b", inline=False)
+                        embed_player(embed, users)
                     temp_message = await ctx.send(embed=embed)
                     pred = ReactionPredicate.yes_or_no(temp_message, ctx.author)
                     start_adding_reactions(
@@ -321,26 +315,9 @@ class Smashtheque(commands.Cog):
         async with self._session.get(discord_url) as r:
             users = await r.json()
             if await r.json() != []:
-                formated_player = "\u200b"
-                personnages = []
-                alts_emojis = []
                 users = Map(users[0])
                 embed = discord.Embed(title="Un joueur est déjà associé à votre compte Discord. Utilisez `!unclaim` pour dissocier votre compte Discord de ce joueur.")
-                for chars in users.characters:
-                    alts_emojis.append(chars["emoji"])
-                personnages = format_emojis(alts_emojis)
-                if users.team != None:
-                    formated_player = formated_player + "Team : {0}".format(
-                        users.team["name"]
-                    )
-                if users.city != None:
-                    formated_player = formated_player + " Ville : {0}".format(
-                        users.city["name"]
-                    )
-                embed.add_field(
-                    name=f"pseudo : {users.name}", value=formated_player, inline=True
-                )
-                embed.add_field(name=personnages, value="\u200b", inline=True)
+                embed_player(embed, users)
                 await ctx.send(embed=embed)
                 return
         player_url = "{0}?by_name_like={1}".format(api_url("players"), pseudo)
@@ -356,25 +333,7 @@ class Smashtheque(commands.Cog):
                 title="Joueur trouvé :",
                 colour=discord.Colour(0xA54C4C),
             )
-            alts_emojis = []
-            users = Map(users)
-            for chars in users.characters:
-                alts_emojis.append(chars["emoji"])
-            personnages = format_emojis(alts_emojis)
-            formated_player = "\u200b"
-            if users.team != None:
-                formated_player = formated_player + "Team : {0}".format(
-                    users.team["name"]
-                )
-            if users.city != None:
-                formated_player = formated_player + " Ville : {0}".format(
-                    users.city["name"]
-                )
-            embed.add_field(
-                name=f"pseudo : {users.name}", value=formated_player, inline=True
-            )
-            embed.add_field(name=personnages, value="\u200b", inline=True)
-            embed.add_field(name="\u200b", value="\u200b", inline=False)
+            embed_player(embed, users)
             temp_message = await ctx.send(embed=embed)
             pred = ReactionPredicate.yes_or_no(temp_message, ctx.author)
             start_adding_reactions(
@@ -400,25 +359,7 @@ class Smashtheque(commands.Cog):
                 colour=discord.Colour(0xA54C4C),
             )
             for users in result:
-                alts_emojis = []
-                users = Map(users)
-                for chars in users.characters:
-                    alts_emojis.append(chars["emoji"])
-                personnages = format_emojis(alts_emojis)
-                formated_player = "\u200b"
-                if users.team != None:
-                    formated_player = formated_player + "Team : {0}".format(
-                        users.team["name"]
-                    )
-                if users.city != None:
-                    formated_player = formated_player + " Ville : {0}".format(
-                        users.city["name"]
-                    )
-                embed.add_field(
-                    name=f"pseudo : {users.name}", value=formated_player, inline=True
-                )
-                embed.add_field(name=personnages, value="\u200b", inline=True)
-                embed.add_field(name="\u200b", value="\u200b", inline=False)
+                embed_player(embed, users)
             temp_message = await ctx.send(embed=embed)
             emojis = ReactionPredicate.NUMBER_EMOJIS[1:len(result) + 1]
             start_adding_reactions(temp_message, emojis)
@@ -452,27 +393,10 @@ class Smashtheque(commands.Cog):
         async with self._session.get(discord_url) as r:
             users = await r.json()
             if await r.json() != []:
-                formated_player = "\u200b"
-                personnages = []
-                alts_emojis = []
                 users = Map(users[0])
                 embed = discord.Embed(title="Un joueur est associé avec votre compte discord. Voulez vous le dissocier ?")
                 embed.set_footer(text="Réagissez avec ✅ pour confirmer et vous dissocier de ce joueur, ou\nréagissez avec ❎ pour annuler.")
-                for chars in users.characters:
-                    alts_emojis.append(chars["emoji"])
-                personnages = format_emojis(alts_emojis)
-                if users.team != None:
-                    formated_player = formated_player + "Team : {0}".format(
-                        users.team["name"]
-                    )
-                if users.city != None:
-                    formated_player = formated_player + " Ville : {0}".format(
-                        users.city["name"]
-                    )
-                embed.add_field(
-                    name=f"pseudo : {users.name}", value=formated_player, inline=True
-                )
-                embed.add_field(name=personnages, value="\u200b", inline=True)
+                embed_player(embed, users)
                 temp_message = await ctx.send(embed=embed)
                 pred = ReactionPredicate.yes_or_no(temp_message, ctx.author)
                 start_adding_reactions(
@@ -657,26 +581,7 @@ class Smashtheque(commands.Cog):
                             colour=discord.Colour(0xA54C4C),
                         )
                         for users in alts:
-                            alts_emojis = []
-                            users = Map(users)
-                            for chars in users.characters:
-                                alts_emojis.append(chars["emoji"])
-                            personnages_ = format_emojis(alts_emojis)
-                            formated_player = "\u200b"
-                            perso = str(*personnages_)
-                            if users.team != None:
-                                formated_player = formated_player + "Team : {0}".format(
-                                    users.team["name"]
-                                )
-                            if users.city != None:
-                                formated_player = formated_player + " Ville : {0}".format(
-                                    users.city["name"]
-                                )
-                            embed.add_field(
-                                name=f"pseudo : {users.name}", value=formated_player, inline=True
-                            )
-                            embed.add_field(name="personnages :", value=perso, inline=True)
-                            embed.add_field(name="\u200b", value="\u200b", inline=False)
+                            embed_player(embed, users)
                         temp_message = await ctx.send(embed=embed)
                         pred = ReactionPredicate.yes_or_no(temp_message, ctx.author)
                         start_adding_reactions(
