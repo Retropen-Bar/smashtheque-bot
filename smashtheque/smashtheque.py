@@ -245,7 +245,8 @@ class Smashtheque(commands.Cog):
                             alts.append(result)
                             print(alts)
                     embed = discord.Embed(
-                        title="Un ou plusieurs joueurs possèdent le même pseudo que le joueur que vous souhaitez ajouter.\nRéagissez avec ✅ pour confirmer et créer un nouveau joueur, ou\nréagissez avec ❎ pour annuler.",
+                        title="Un ou plusieurs joueurs possèdent le même pseudo que le joueur que vous souhaitez ajouter.",
+
                         colour=discord.Colour(0xA54C4C),
                     )
                     embed.set_footer(text="Réagissez avec ✅ pour confirmer et créer un nouveau joueur, ou\nréagissez avec ❎ pour annuler.")
