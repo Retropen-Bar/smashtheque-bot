@@ -98,19 +98,19 @@ class CharactersCacheNotFetched(Error):
 class Smashtheque(commands.Cog):
     async def initialize(self):
         global api_base_url
-        if os.environ['SMASHTHEQUE_API_URL']:
+        if 'SMASHTHEQUE_API_URL' in os.environ and os.environ['SMASHTHEQUE_API_URL']:
             api_base_url = os.environ['SMASHTHEQUE_API_URL']
         else:
             api_base_url = await self.bot.get_shared_api_tokens("smashtheque")
             api_base_url = api_base_url["url"]
         print(f"Smashthèque API base URL set to {api_base_url}")
-        if os.environ['ROLLBAR_TOKEN']:
+        if 'ROLLBAR_TOKEN' in os.environ and os.environ['ROLLBAR_TOKEN']:
             rollbar_token = os.environ['ROLLBAR_TOKEN']
         else:
             rollbar_token = await self.bot.get_shared_api_tokens("smashtheque")
             rollbar_token = rollbar_token["token"]
         rollbar.init(rollbar_token)
-        if os.environ['SMASHTHEQUE_API_TOKEN']:
+        if 'SMASHTHEQUE_API_TOKEN' in os.environ and os.environ['SMASHTHEQUE_API_TOKEN']:
             bearer = os.environ['SMASHTHEQUE_API_TOKEN']
         else:
             bearer = await self.bot.get_shared_api_tokens("smashtheque")
