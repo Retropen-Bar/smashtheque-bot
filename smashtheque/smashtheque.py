@@ -102,34 +102,15 @@ class Smashtheque(commands.Cog):
     def cog_unload(self):
         asyncio.create_task(self._session.close())
 
-    @commands.command()
-    async def test3s(self, ctx):
-        async with self._session.post(
-            urls["players"],
-            data=json.dumps(
-                {
-                    "player": {
-                        "name": "red",
-                        "character_ids": [26],
-                        "creator_discord_id": "332894758076678144",
-                        "team_id": 18,
-                        "city_id": 24,
-                    }
-                }
-            ),
-            headers={"content-type": "application/json"},
-        ) as r:
-            print(r.status)
-
     @commands.command(usage="<pseudo> <emotes de persos> [team] [ville] [id discord]")
     async def apite(self, ctx, *, arg):
-        """cette commande va vous permettre d'ajouter un joueur dans la base de données de smashthèque.
-        \n\nVous devez ajouter au minimum le pseudo et les persos joués dans l'ordre.
-        \n\nVous pouvez aussi ajouter sa team, sa ville, et si il possède un compte discord, son id pour qu'il puisse modifier lui-même son compte.
-        \n\nVous pouvez récupérer l'id avec les options de developpeur (activez-les dans l'onglet Apparence des paramètres de l'utilisateur, puis faites un clic droit sur l'utilisateur et sélectionnez \"Copier ID\".)
-        \n\n\nExamples : \n- !placeholder Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>\n- !placeholder red <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
+        """cette commande va vous permettre d'ajouter un joueur dans la Smashthèque.
+        \n\nVous devez ajouter au minimum le pseudo et les personnages joués (dans l'ordre).
+        \n\nVous pouvez aussi ajouter sa team, sa ville et, s'il possède un compte Discord, son ID pour qu'il puisse modifier lui-même son compte.
+        \n\nVous pouvez récupérer l'ID avec les options de developpeur (activez-les dans l'onglet Apparence des paramètres de l'utilisateur, puis faites un clic droit sur l'utilisateur et sélectionnez \"Copier ID\".)
+        \n\n\nExemples : \n- !addplayer Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>\n- !addplayer red <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
         """
-        current_stage représente l'argument a process. 
+        current_stage représente l'argument a process.
         0 = le nom
         1 = les émojis de perso
         2 = la team
@@ -150,7 +131,7 @@ class Smashtheque(commands.Cog):
                     # regex les émojis discord
                     if loop == 1:
                         await yeet(
-                            ctx, "Veuillez commencer par donner le nom du joueur."
+                            ctx, "Veuillez commencer par donner le pseudo du joueur."
                         )
                         return
                     else:
@@ -166,7 +147,7 @@ class Smashtheque(commands.Cog):
                             if emoji_dict == {}:
                                 await yeet(
                                     ctx,
-                                    "Veuillez utiliser les bon émojis de perso du serveur.",
+                                    "Veuillez utiliser les émojis de personnages de ce serveur.",
                                 )
                                 return
                             response["character_ids"].append(emoji_dict["id"])
@@ -190,7 +171,7 @@ class Smashtheque(commands.Cog):
                             break
                     if emoji_dict == {}:
                         await yeet(
-                            ctx, "Veuillez utiliser les bon émojis de perso du serveur."
+                            ctx, "Veuillez utiliser les émojis de personnages de ce serveur."
                         )
                         return
                     response["character_ids"].append(emoji_dict["id"])
@@ -218,7 +199,7 @@ class Smashtheque(commands.Cog):
                         if "city_id" not in response:
                             await yeet(
                                 ctx,
-                                "Veuillez entrer un nom de team correct.\nPour ça, utilisez son tag.\nExample : `LoS` ou `RB`",
+                                "Veuillez entrer un nom de team correct.\nPour ça, utilisez son tag.\nExample : `LoS` ou `R-B`",
                             )
                             return
                         else:
@@ -231,18 +212,7 @@ class Smashtheque(commands.Cog):
                 if argu.isdigit() == True and len(str(argu)) == 18:
                     response["discord_id"] = str(argu)
                     break
-                async with self._session.get(urls["cities"]) as r:
-                    result = await r.json()
-                    for i in result:
-                        if i["name"].lower() == argu.lower():
-                            response["city_id"] = i["id"]
-                            break
-                    if "city_id" not in response:
-                        await yeet(
-                            ctx,
-                            "Veuillez entrer un nom de ville correct.\nSi votre ville n'éxiste pas encore, demandez a un admin de l'ajouter.",
-                        )
-                        return
+                response["city_name"] = argu
                 current_stage = 4
                 continue
             elif current_stage == 4:
@@ -251,7 +221,7 @@ class Smashtheque(commands.Cog):
                 else:
                     await yeet(
                         ctx,
-                        "veuillez entrer l'id discord du joueur à ajouter.\nPour avoir son ID, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites clic droit sur l'utilisateur > copier l'id.",
+                        "veuillez entrer l'ID Discord du joueur à ajouter.\nPour avoir son ID, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant.",
                     )
                     return
             loop += 1
@@ -275,7 +245,7 @@ class Smashtheque(commands.Cog):
                             alts.append(result)
                             print(alts)
                     embed = discord.Embed(
-                        title="une ou plusieurs personnes possèdent le même pseudo que la personne que vous souhaitez ajouter. ",
+                        title="Un ou plusieurs joueurs possèdent le même pseudo que le joueur que vous souhaitez ajouter.\nRéagissez avec ✅ pour confirmer et créer un nouveau joueur, ou\nréagissez avec ❎ pour annuler.",
                         colour=discord.Colour(0xA54C4C),
                     )
                     for users in alts:
@@ -309,7 +279,7 @@ class Smashtheque(commands.Cog):
                             "reaction_add", timeout=60.0, check=pred
                         )
                     except asyncio.TimeoutError:
-                        await ctx.send("Commande annulé")
+                        await ctx.send("Commande annulée")
                     if pred.result is True:
                         await temp_message.delete()
                         response["player"]["name_confirmation"] = True
@@ -317,7 +287,7 @@ class Smashtheque(commands.Cog):
                         async with self._session.post(urls["players"], json=response) as r:
                             print(r)
                     else:
-                        await ctx.send("Commande annulé")
+                        await ctx.send("Commande annulée")
                         await temp_message.delete()
                         return
                 else:
@@ -329,7 +299,7 @@ class Smashtheque(commands.Cog):
                     return
         print(current_stage)
         embed = discord.Embed(
-        title=f"\"iI guess it's done\". Le joueur \"{name_storing.rstrip()}\" a été ajouté à la base de données.",
+        title=f"\"I guess it's done!\". Le joueur \"{name_storing.rstrip()}\" a été ajouté à la base de données.",
         colour=discord.Colour(0xA54C4C),
         )
         await ctx.send(embed=embed)
@@ -344,7 +314,7 @@ class Smashtheque(commands.Cog):
                 personnages = []
                 alts_emojis = []
                 users = Map(users[0])
-                embed = discord.Embed(title="Vous avez déjà un joueur enregistré. Utilisez `!unclaim` pour rejeter ce joueur.")
+                embed = discord.Embed(title="Un joueur est déjà associé à votre compte Discord. Utilisez `!unclaim` pour dissocier votre compte Discord de ce joueur.")
                 for chars in users.characters:
                     alts_emojis.append(chars["emoji"])
                 personnages = format_emojis(alts_emojis)
@@ -372,7 +342,7 @@ class Smashtheque(commands.Cog):
         if len(result) == 1:
             users = result[0]
             embed = discord.Embed(
-                title="joueur trouvé :",
+                title="Joueur trouvé :",
                 colour=discord.Colour(0xA54C4C),
             )
             alts_emojis = []
@@ -404,7 +374,7 @@ class Smashtheque(commands.Cog):
                     "reaction_add", timeout=60.0, check=pred
                 )
             except asyncio.TimeoutError:
-                await ctx.send("Commande annulé")
+                await ctx.send("Commande annulée")
             if pred.result is True:
                 await temp_message.delete()
                 player_url = "{0}/{1}".format(urls["players"], users.id)
@@ -413,9 +383,9 @@ class Smashtheque(commands.Cog):
                 print(response)
                 async with self._session.patch(player_url, json=response) as r:
                     print(r)
-        else:        
+        else:
             embed = discord.Embed(
-                title="Plusieurs personnes possèdent le même pseudo.\nChoisissez le bon joueur dans la liste ci dessous grâce aux réactions",
+                title="Plusieurs joueurs ont ce pseudo.\nChoisissez le bon joueur dans la liste ci-dessous grâce aux réactions",
                 colour=discord.Colour(0xA54C4C),
             )
             for users in result:
@@ -445,7 +415,7 @@ class Smashtheque(commands.Cog):
             try:
                 await ctx.bot.wait_for("reaction_add", timeout=60.0, check=pred)
             except asyncio.TimeoutError:
-                await ctx.send("Commande annulé")
+                await ctx.send("Commande annulée")
             if type(pred.result) == int:
                 await temp_message.delete()
                 player_url = "{0}/{1}".format(urls["players"], result[pred.result]["id"])
@@ -455,13 +425,13 @@ class Smashtheque(commands.Cog):
                     response = {"player": {"discord_id": str(ctx.author.id)}}
                     await self._session.patch(player_url, json=response)
                     embed = discord.Embed(
-                    title=f"\"iI guess it's done\". Votre compte discord est maintenant lié avec le joueur nommé {pseudo}.",
+                    title=f"\"I guess it's done!\". Votre compte Discord est maintenant associé au joueur nommé {pseudo}.",
                     colour=discord.Colour(0xA54C4C),
                     )
                     await ctx.send(embed=embed)
                 else:
                     embed = discord.Embed(
-                        title=f"Il semblerait que ce joueur soit déjà ajouté à un compte discord "
+                        title=f"Il semblerait que ce joueur soit déjà associé à un compte Discord "
                     )
                     await ctx.send(embed=embed)
     @commands.command()
@@ -476,7 +446,7 @@ class Smashtheque(commands.Cog):
                 alts_emojis = []
                 users = Map(users[0])
                 embed = discord.Embed(title="Un joueur est associé avec votre compte discord. Voulez vous le dissocier ?")
-                embed.set_footer(text="Réagit avec ✅ pour confirmer qu'il ne s'agit d'aucun de ces joueurs existants et donc créer un nouveau joueur.\n Réagit avec ❎ pour annuler")
+                embed.set_footer(text="Réagissez avec ✅ pour confirmer et vous dissocier de ce joueur, ou\nréagissez avec ❎ pour annuler.")
                 for chars in users.characters:
                     alts_emojis.append(chars["emoji"])
                 personnages = format_emojis(alts_emojis)
@@ -502,7 +472,7 @@ class Smashtheque(commands.Cog):
                         "reaction_add", timeout=60.0, check=pred
                     )
                 except asyncio.TimeoutError:
-                    await ctx.send("Commande annulé")
+                    await ctx.send("Commande annulée")
                     return
                 if pred.result is True:
                     await temp_message.delete()
@@ -510,12 +480,12 @@ class Smashtheque(commands.Cog):
                     response = {"player": {"discord_id": None}}
                     await self._session.patch(player_url, json=response)
                     embed = discord.Embed(
-                    title=f"\"iI guess it's done\". Votre compte discord est maintenant dissocié avec le joueur nommé {users.name}.",
+                    title=f"\"I guess it's done!\". Votre compte Discord a été dissocié du joueur {users.name}.",
                     colour=discord.Colour(0xA54C4C),
                     )
                     await ctx.send(embed=embed)
                 else:
-                    await ctx.send("Commande annulé")
+                    await ctx.send("Commande annulée")
                     await temp_message.delete()
                     return
     @commands.command()
@@ -707,7 +677,7 @@ class Smashtheque(commands.Cog):
                             )
                             break
                         except asyncio.TimeoutError:
-                            await ctx.send("Commande annulé")
+                            await ctx.send("Commande annulée")
                         if pred.result is True:
                             await temp_message.delete()
                             response["player"]["name_confirmation"] = True
@@ -715,7 +685,7 @@ class Smashtheque(commands.Cog):
                             async with self._session.post(urls["players"], json=response) as r:
                                 print(r)
                         else:
-                            await ctx.send("Commande annulé")
+                            await ctx.send("Commande annulée")
                             await temp_message.delete()
                             break
                     else:
