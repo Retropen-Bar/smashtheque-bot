@@ -10,6 +10,7 @@ from typing import Optional
 import re
 import json
 import rollbar
+import os
 import sys
 from collections.abc import Mapping
 from collections import UserDict
@@ -85,11 +86,17 @@ class Map(UserDict):
 
 class Smashtheque(commands.Cog):
     async def initialize(self):
-        rollbar_token = await self.bot.get_shared_api_tokens("smashtheque")
-        rollbar_token = rollbar_token["token"]
+        if os.environ['ROLLBAR_TOKEN']:
+            rollbar_token = os.environ['ROLLBAR_TOKEN']
+        else:
+            rollbar_token = await self.bot.get_shared_api_tokens("smashtheque")
+            rollbar_token = rollbar_token["token"]
         rollbar.init(rollbar_token)
-        bearer = await self.bot.get_shared_api_tokens("smashtheque")
-        bearer = bearer["bearer"]
+        if os.environ['SMASHTHEQUE_API_TOKEN']:
+            bearer = os.environ['SMASHTHEQUE_API_TOKEN']
+        else:
+            bearer = await self.bot.get_shared_api_tokens("smashtheque")
+            bearer = bearer["bearer"]
         headers = {
             "Authorization": f"Bearer {bearer}",
             "Content-Type": "application/json",
