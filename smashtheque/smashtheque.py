@@ -73,12 +73,26 @@ def format_emojis(id_list):
     return end
 
 
+def is_discord_id(v):
+    return v.isdigit() and len(str(v)) == 18
+
+def is_emoji(v):
+    return re.search(r"<a?:(\w+):(\d+)>", v) != None
+
 class Map(UserDict):
     def __getattr__(self, attr):
         val = self.data[attr]
         if isinstance(val, Mapping):
             return Map(val)
         return val
+
+class Error(Exception):
+    """Base class for other exceptions"""
+    pass
+
+class CharactersCacheNotFetched(Error):
+    """Raised when the cache is not fetched yet"""
+    pass
 
 
 class Smashtheque(commands.Cog):
@@ -107,6 +121,8 @@ class Smashtheque(commands.Cog):
         }
         self._session = aiohttp.ClientSession(headers=headers)
         self._characters_cache = {}
+        self._cities_cache = {}
+        self._teams_cache = {}
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -115,13 +131,54 @@ class Smashtheque(commands.Cog):
         asyncio.create_task(self._session.close())
 
     async def fetch_characters(self):
+        print('fetch_characters')
         async with self._session.get(api_url("characters")) as response:
             characters = await response.json()
             # puts values in cache before responding
             for character in characters:
-                self._characters_cache[character["id"]] = character
+                self._characters_cache[str(character["id"])] = character
             # respond
             return characters
+
+    # this only works if self.fetch_characters() has been called at least once
+    async def find_character_by_emoji_tag(self, ctx, emoji):
+        if len(self._characters_cache) < 1:
+            print(f"self._characters_cache = {self._characters_cache}")
+            raise CharactersCacheNotFetched
+        emoji_id = re.search(r"[0-9]+", emoji).group()
+        for character_id in self._characters_cache:
+            character = self._characters_cache[str(character_id)]
+            if character["emoji"] == emoji_id:
+                return character
+        await yeet(
+            ctx,
+            f"Emoji {emoji} non reconnu : veuillez utiliser les émojis de personnages de ce serveur."
+        )
+        return None
+
+    async def find_team_by_short_name(self, short_name):
+        request_url = "{0}?by_short_name_like={1}".format(api_url("teams"), short_name)
+        async with self._session.get(request_url) as response:
+            teams = await response.json()
+            if teams != []:
+                # puts values in cache before responding
+                for team in teams:
+                    self._teams_cache[str(team["id"])] = team
+                return teams[0]
+            else:
+                return None
+
+    async def find_city_by_name(self, name):
+        request_url = "{0}?by_name_like={1}".format(api_url("cities"), name)
+        async with self._session.get(request_url) as response:
+            cities = await response.json()
+            if cities != []:
+                # puts values in cache before responding
+                for city in cities:
+                    self._cities_cache[str(city["id"])] = city
+                return cities[0]
+            else:
+                return None
 
     def embed_player(self, embed, _player):
         print(f"embed player {_player}")
@@ -133,23 +190,26 @@ class Smashtheque(commands.Cog):
                 alts_emojis.append(character["emoji"])
         elif "character_ids" in _player:
             for character_id in player.character_ids:
-                alts_emojis.append(self._characters_cache[character_id]["emoji"])
+                alts_emojis.append(self._characters_cache[str(character_id)]["emoji"])
         personnages = format_emojis(alts_emojis)
-        formated_player = "\u200b"
 
+        embed.add_field(name=player.name, value=personnages, inline=True)
+
+        team_name = None
         if "team" in _player and player.team != None:
-            formated_player = formated_player + "Team : {0}".format(
-                player.team["name"]
-            )
+            team_name = player.team["name"]
+        elif "team_id" in _player and player.team_id != None:
+            team_name = self._teams_cache[str(player.team_id)]["name"]
+        if team_name != None:
+            embed.add_field(name="Team", value=team_name, inline=True)
 
+        city_name = None
         if "city" in _player and player.city != None:
-            formated_player = formated_player + " Ville : {0}".format(
-                player.city["name"]
-            )
-
-        embed.add_field(name=player.name, value=formated_player, inline=True)
-        embed.add_field(name=personnages, value="\u200b", inline=True)
-        embed.add_field(name="\u200b", value="\u200b", inline=False)
+            city_name = player.city["name"]
+        elif "city_id" in _player and player.city_id != None:
+            city_name = self._cities_cache[str(player.city_id)]["name"]
+        if city_name != None:
+            embed.add_field(name="Ville", value=city_name, inline=True)
 
     async def confirm_create_player(self, ctx, player):
         embed = discord.Embed(
@@ -252,105 +312,152 @@ class Smashtheque(commands.Cog):
         4 = l'id discord
         """
 
+        # fetch characters once
+        await self.fetch_characters()
+
+        # stages:
+        # 0: pseudo
+        # 1: characters
+        # 2: team
+        # 3: city
+        # 4: discord ID
+
         current_stage = 0
-        alts = []
+
         # init de la réponse
         response = {"name": "", "character_ids": [], "creator_discord_id": ""}
-        # process chaque arguments individuelement
-        x = arg.split()
-        loop = 1
-        for argu in x:
+
+        # process each argument between spaces
+        # [name piece] [name piece] [emoji] [emoji] [team] [city] [discord ID]
+        arguments = arg.split()
+
+        for argu in arguments:
             print(f"current_stage={current_stage} argu={argu}")
+
             if current_stage == 0:
-                if re.search(r"<a?:(\w+):(\d+)>", argu) != None:
-                    # regex les émojis discord
-                    if loop == 1:
+                print('stage 0')
+                # at this stage, the next argument could be a name piece
+                # ... [name piece] [emoji] [emoji] [team] [city] [discord ID]
+
+                if is_emoji(argu):
+                    if len(response["name"]) > 0:
+                        # we are actually done with the name, so go to stage 1
+                        current_stage = 1
+                        # do not 'continue' here because we stil want to process @argu
+                    else:
                         await yeet(
                             ctx, "Veuillez commencer par donner le pseudo du joueur."
                         )
                         return
-                    else:
-                        current_stage = 1
-                        characters = await self.fetch_characters()
-                        # associer les ID des émojis input aux id de personnages
-                        emoji_dict = {}
-                        for sub in characters:
-                            if sub["emoji"] == re.search(r"[0-9]+", argu).group():
-                                emoji_dict = sub
-                                break
-                        if emoji_dict == {}:
-                            await yeet(
-                                ctx,
-                                "Veuillez utiliser les émojis de personnages de ce serveur.",
-                            )
-                            return
-                        response["character_ids"].append(emoji_dict["id"])
-                        continue
                 else:
                     # parse le nom qui peut contenir des espaces
                     response["name"] = response["name"] + argu + " "
-                    loop += 1
-                    name_storing = response["name"]
+                    # there could still be remaining pieces of the pseudo,
+                    # so do not go to stage 1 yet
                     continue
-            elif current_stage == 1:
-                # test si il reste des emojis a process dans les arguments
-                if re.search(r"<a?:(\w+):(\d+)>", argu) == None:
+
+            # do not use elif here because we want the previous section to be able to go here
+            # without restarting the loop
+            if current_stage == 1:
+                print('stage 1')
+                # at this stage, the next argument could be a character emoji
+                # ... [emoji] [emoji] [team] [city] [discord ID]
+
+                if not is_emoji(argu):
+                    # we are actually done with the emojis, so go to stage 2
                     current_stage = 2
-                    continue
-                # associer les ID des émojis input aux id de personnages si plus d'un perso est input
+                    # do not 'continue' here because we stil want to process @argu
                 else:
-                    for sub in result:
-                        if sub["emoji"] == re.search(r"[0-9]+", argu).group():
-                            emoji_dict = sub
-                            break
-                    if emoji_dict == {}:
-                        await yeet(
-                            ctx, "Veuillez utiliser les émojis de personnages de ce serveur."
-                        )
+                    # more emojis to parse
+                    character = await self.find_character_by_emoji_tag(ctx, argu)
+                    if character == None:
                         return
-                    response["character_ids"].append(emoji_dict["id"])
+                    response["character_ids"].append(character["id"])
+                    # there could still be emojis to parse,
+                    # so do not go to stage 2 yet
                     continue
-            # parse la team si il y en a une
+
+            # do not use elif here because we want the previous section to be able to go here
+            # without restarting the loop
             if current_stage == 2:
-                # check si l'argu est une id discord
-                if argu.isdigit() == True and len(str(argu)) == 18:
+                print('stage 2')
+                # at this stage, the next argument could be a team
+                # ... [team] [city] [discord ID]
+
+                if is_discord_id(argu):
                     response["discord_id"] = str(argu)
                     break
-                async with self._session.get(api_url("teams")) as r:
-                    result = await r.json()
-                    for i in result:
-                        if i["short_name"].lower() == argu.lower():
-                            response["team_id"] = i["id"]
-                            break
-                    if "team_id" not in response:
-                        # aucune team trouvée pour ce nom, on considère que c'est une ville
-                        response["city_name"] = argu
-                        current_stage = 4
-                        continue
+
+                team = await self.find_team_by_short_name(argu)
+                if team != None:
+                    response["team_id"] = team["id"]
+                    current_stage = 3
+                    continue
+
+                # nope, not a team, try next stage
                 current_stage = 3
-                continue
-            elif current_stage == 3:
-                # pareil, id discord
-                if argu.isdigit() == True and len(str(argu)) == 18:
+
+            # do not use elif here because we want the previous section to be able to go here
+            # without restarting the loop
+            if current_stage == 3:
+                print('stage 3')
+                # at this stage, the next argument could be a city
+                # ... [city] [discord ID]
+
+                if is_discord_id(argu):
                     response["discord_id"] = str(argu)
                     break
-                response["city_name"] = argu
+
+                city = await self.find_city_by_name(argu)
+                if city != None:
+                    response["city_id"] = city["id"]
+                    current_stage = 4
+                    continue
+
+                # nope, not a city
+                # so we have a problem here
+                # because argu is neither a city nor a Discord ID
+                # -> we could already stop here and raise an issue
+
                 current_stage = 4
-                continue
-            elif current_stage == 4:
-                if argu.isdigit() == True and len(str(argu)) == 18:
+
+            # do not use elif here because we want the previous section to be able to go here
+            # without restarting the loop
+            if current_stage == 4:
+                print('stage 4')
+                # at this stage, the next argument could only be a discord ID
+                # ... [discord ID]
+
+                if is_discord_id(argu):
                     response["discord_id"] = str(argu)
-                else:
+                    break
+
+                # so we were unable to parse argu
+                if "city_id" in response and response["city_id"] != None:
+                    # we have a city, so we are pretty sure argu was supposed to be a Discord ID
                     await yeet(
                         ctx,
-                        "veuillez entrer l'ID Discord du joueur à ajouter.\nPour avoir son ID, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant.",
+                        f"Veuillez entrer un ID Discord correct pour le joueur à ajouter : {argu} n'en est pas un.\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
                     )
                     return
-            loop += 1
-        # verifier que plusieurs personnes n'aient pas le même pseudo (obsolète, a changer)
+                elif "team_id" in response and response["team_id"] != None:
+                    # we have a team, so argu could be for a city or a Discord ID
+                    await yeet(
+                        ctx,
+                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une ville, vous pouvez la créer avec !addcity.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
+                    )
+                    return
+                else:
+                    # we have no team and no city: argu could be for a team, a city or a Discord ID
+                    await yeet(
+                        ctx,
+                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une équipe, vous devez demander à un administrateur de la créer.\nS'il s'agit d'une ville, vous pouvez la créer avec !addcity.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
+                    )
+                    return
+
+        # now the player is filled with attributes
         response["creator_discord_id"] = str(ctx.author.id)
         response["name"] = response["name"].rstrip()
-
         await self.confirm_create_player(ctx, response)
 
 
