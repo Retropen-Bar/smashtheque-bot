@@ -1,0 +1,15 @@
+version: '3.2'
+
+services:
+
+  redbot:
+    image: phasecorex/red-discordbot
+    volumes:
+      - ./data/redbot:/data
+      - ./smashtheque:/data/cogs/Smashtheque
+    env_file:
+      - ./redbot.env
+    environment:
+      - TZ=Europe/Paris
+      - PUID=1000
+    restart: unless-stopped
