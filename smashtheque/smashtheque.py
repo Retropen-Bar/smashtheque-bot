@@ -180,7 +180,15 @@ class Smashtheque(commands.Cog):
             else:
                 return None
 
-    def embed_player(self, embed, _player):
+    def embed_players(self, embed, players, with_index=False):
+        idx = 0
+        for player in players:
+            if idx > 0:
+                embed.add_field(name="\u200b", value="\u200b", inline=False)
+            self.embed_player(embed, player, with_index=with_index, index=idx+1)
+            idx += 1
+
+    def embed_player(self, embed, _player, with_index=False, index=0):
         print(f"embed player {_player}")
         player = Map(_player)
 
@@ -193,7 +201,10 @@ class Smashtheque(commands.Cog):
                 alts_emojis.append(self._characters_cache[str(character_id)]["emoji"])
         personnages = format_emojis(alts_emojis)
 
-        embed.add_field(name=player.name, value=personnages, inline=True)
+        player_name = player.name
+        if with_index:
+            player_name = ReactionPredicate.NUMBER_EMOJIS[index] + " " + player_name
+        embed.add_field(name=player_name, value=personnages, inline=True)
 
         team_name = None
         if "team" in _player and player.team != None:
@@ -260,8 +271,7 @@ class Smashtheque(commands.Cog):
                         colour=discord.Colour(0xA54C4C),
                     )
                     embed.set_footer(text="Réagissez avec ✅ pour confirmer et créer un nouveau joueur, ou\nréagissez avec ❎ pour annuler.")
-                    for users in alts:
-                        self.embed_player(embed, users)
+                    self.embed_players(embed, alts)
                     temp_message = await ctx.send(embed=embed)
                     pred = ReactionPredicate.yes_or_no(temp_message, ctx.author)
                     start_adding_reactions(
@@ -511,8 +521,7 @@ class Smashtheque(commands.Cog):
                 title="Plusieurs joueurs ont ce pseudo.\nChoisissez le bon joueur dans la liste ci-dessous grâce aux réactions",
                 colour=discord.Colour(0xA54C4C),
             )
-            for users in result:
-                self.embed_player(embed, users)
+            self.embed_players(embed, result, with_index=True)
             temp_message = await ctx.send(embed=embed)
             emojis = ReactionPredicate.NUMBER_EMOJIS[1:len(result) + 1]
             start_adding_reactions(temp_message, emojis)
@@ -732,8 +741,7 @@ class Smashtheque(commands.Cog):
                             title="une ou plusieurs personnes possèdent le même pseudo que la personne que vous souhaitez ajouter. ",
                             colour=discord.Colour(0xA54C4C),
                         )
-                        for users in alts:
-                            self.embed_player(embed, users)
+                        self.embed_players(embed, alts)
                         temp_message = await ctx.send(embed=embed)
                         pred = ReactionPredicate.yes_or_no(temp_message, ctx.author)
                         start_adding_reactions(
