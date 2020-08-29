@@ -305,22 +305,10 @@ class Smashtheque(commands.Cog):
 
         # player creation wen fine
         embed = discord.Embed(
-            title=f"\"I guess it's done!\". Le joueur a été ajouté à la base de données.",
+            title=f"\"I guess it's done!\".\nLe joueur a été ajouté à la base de données.",
             colour=discord.Colour(0xA54C4C),
         )
         await ctx.send(embed=embed)
-
-    @commands.command(usage="<nom>")
-    async def ajouterville(self, ctx, *, name):
-        """cette commande va vous permettre d'ajouter une ville dans la Smashthèque.
-        \n\nVous devez préciser son nom.
-        \n\n\nExemples : \n- !ajouterville Paris\n- !ajouterville Lyon\n"""
-
-        try:
-            await self.do_addcity(ctx, name)
-        except:
-            rollbar.report_exc_info()
-            raise
 
     async def do_addcity(self, ctx, name):
         print(f"create city {name}")
@@ -329,7 +317,7 @@ class Smashtheque(commands.Cog):
             if r.status == 201:
                 # city creation went fine
                 embed = discord.Embed(
-                    title=f"\"I guess it's done!\". La ville a été ajoutée à la base de données.",
+                    title=f"\"I guess it's done!\".\nLa ville a été ajoutée à la base de données.",
                     colour=discord.Colour(0xA54C4C),
                 )
                 await ctx.send(embed=embed)
@@ -346,30 +334,6 @@ class Smashtheque(commands.Cog):
             # something went wrong but we don't know what
             await generic_error(ctx, r)
             return
-
-
-    @commands.command(usage="<pseudo> <emotes de persos> [team] [ville] [id discord]")
-    async def ajouterjoueur(self, ctx, *, arg):
-        """cette commande va vous permettre d'ajouter un joueur dans la Smashthèque.
-        \n\nVous devez ajouter au minimum le pseudo et les personnages joués (dans l'ordre).
-        \n\nVous pouvez aussi ajouter sa team, sa ville et, s'il possède un compte Discord, son ID pour qu'il puisse modifier lui-même son compte.
-        \n\nVous pouvez récupérer l'ID avec les options de developpeur (activez-les dans l'onglet Apparence des paramètres de l'utilisateur, puis faites un clic droit sur l'utilisateur et sélectionnez \"Copier ID\".)
-        \n\n\nExemples : \n- !ajouterjoueur Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>\n- !ajouterjoueur red <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
-        """
-        current_stage représente l'argument a process.
-        0 = le nom
-        1 = les émojis de perso
-        2 = la team
-        3 = la ville
-        4 = l'id discord
-        """
-
-        try:
-            await self.do_addplayer(ctx, arg)
-        except:
-            rollbar.report_exc_info()
-            raise
-
 
     async def do_addplayer(self, ctx, arg):
 
@@ -521,23 +485,13 @@ class Smashtheque(commands.Cog):
         response["name"] = response["name"].rstrip()
         await self.confirm_create_player(ctx, response)
 
-
-    @commands.command()
-    @commands.admin_or_permissions(administrator=True)
-    async def claim(self, ctx, *, pseudo):
-        try:
-            await self.do_claim(ctx, pseudo)
-        except:
-            rollbar.report_exc_info()
-            raise
-
-    async def do_claim(self, ctx, pseudo):
-        discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), ctx.author.id)
+    async def do_link(self, ctx, pseudo, discord_id):
+        discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), discord_id)
         async with self._session.get(discord_url) as r:
             users = await r.json()
             if await r.json() != []:
                 users = Map(users[0])
-                embed = discord.Embed(title="Un joueur est déjà associé à votre compte Discord. Contactez un admin pour dissocier votre compte Discord de ce joueur.")
+                embed = discord.Embed(title="Un joueur est déjà associé à ce compte Discord. Contactez un admin pour dissocier ce compte Discord de ce joueur.")
                 self.embed_player(embed, users)
                 await ctx.send(embed=embed)
                 return
@@ -568,12 +522,21 @@ class Smashtheque(commands.Cog):
                 await ctx.send("Commande annulée")
             if pred.result is True:
                 await temp_message.delete()
-                player_url = "{0}/{1}".format(self.api_url("players"), users.id)
-                response = {"player": {"discord_id": str(ctx.author.id)}}
+                player_url = "{0}/{1}".format(self.api_url("players"), users["id"])
+                response = {"player": {"discord_id": str(discord_id)}}
                 print(player_url)
                 print(response)
                 async with self._session.patch(player_url, json=response) as r:
-                    print(r)
+                    embed = discord.Embed(
+                        title=f"\"I guess it's done!\".\nLe compte Discord {discord_id} est maintenant associé au joueur {pseudo}.",
+                        colour=discord.Colour(0xA54C4C),
+                    )
+                    await ctx.send(embed=embed)
+                    return
+            else:
+                await ctx.send("Commande annulée")
+                await temp_message.delete()
+                return
         else:
             embed = discord.Embed(
                 title="Plusieurs joueurs ont ce pseudo.\nChoisissez le bon joueur dans la liste ci-dessous grâce aux réactions",
@@ -593,36 +556,28 @@ class Smashtheque(commands.Cog):
                 player_url = "{0}/{1}".format(self.api_url("players"), result[pred.result]["id"])
                 async with self._session.get(player_url) as r:
                     result = await r.json()
-                if result["discord_id"] == None:
-                    response = {"player": {"discord_id": str(ctx.author.id)}}
-                    await self._session.patch(player_url, json=response)
-                    embed = discord.Embed(
-                    title=f"\"I guess it's done!\". Votre compte Discord est maintenant associé au joueur nommé {pseudo}.",
-                    colour=discord.Colour(0xA54C4C),
-                    )
-                    await ctx.send(embed=embed)
-                else:
-                    embed = discord.Embed(
-                        title=f"Il semblerait que ce joueur soit déjà associé à un compte Discord "
-                    )
-                    await ctx.send(embed=embed)
-    @commands.command()
-    @commands.is_owner()
-    async def unclaim(self, ctx):
-        try:
-            await self.do_unclaim(ctx)
-        except:
-            rollbar.report_exc_info()
-            raise
+                    if result["discord_id"] == None:
+                        response = {"player": {"discord_id": str(discord_id)}}
+                        await self._session.patch(player_url, json=response)
+                        embed = discord.Embed(
+                            title=f"\"I guess it's done!\".\nLe compte Discord {discord_id} est maintenant associé au joueur {pseudo}.",
+                            colour=discord.Colour(0xA54C4C),
+                        )
+                        await ctx.send(embed=embed)
+                    else:
+                        embed = discord.Embed(
+                            title=f"Il semblerait que ce joueur soit déjà associé à un compte Discord "
+                        )
+                        await ctx.send(embed=embed)
 
-    async def do_unclaim(self, ctx):
-        discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), ctx.author.id)
+    async def do_unlink(self, ctx, discord_id):
+        discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), discord_id)
         async with self._session.get(discord_url) as r:
             users = await r.json()
             if await r.json() != []:
                 users = Map(users[0])
-                embed = discord.Embed(title="Un joueur est associé avec votre compte discord. Voulez vous le dissocier ?")
-                embed.set_footer(text="Réagissez avec ✅ pour confirmer et vous dissocier de ce joueur, ou\nréagissez avec ❎ pour annuler.")
+                embed = discord.Embed(title="Un joueur est associé à ce compte discord. Voulez vous le dissocier ?")
+                embed.set_footer(text="Réagissez avec ✅ pour confirmer et dissocier ce compte du joueur, ou\nréagissez avec ❎ pour annuler.")
                 self.embed_player(embed, users)
                 temp_message = await ctx.send(embed=embed)
                 pred = ReactionPredicate.yes_or_no(temp_message, ctx.author)
@@ -642,7 +597,7 @@ class Smashtheque(commands.Cog):
                     response = {"player": {"discord_id": None}}
                     await self._session.patch(player_url, json=response)
                     embed = discord.Embed(
-                    title=f"\"I guess it's done!\". Votre compte Discord a été dissocié du joueur {users.name}.",
+                    title=f"\"I guess it's done!\".\nLe compte Discord {discord_id} a été dissocié du joueur {users.name}.",
                     colour=discord.Colour(0xA54C4C),
                     )
                     await ctx.send(embed=embed)
@@ -650,25 +605,6 @@ class Smashtheque(commands.Cog):
                     await ctx.send("Commande annulée")
                     await temp_message.delete()
                     return
-
-
-    @commands.command()
-    @commands.is_owner()
-    async def massadd(self, ctx, *, arguments):
-        """cette commande va vous permettre d'ajouter **plusieurs** joueurs dans la base de données de smashthèque.
-        \n\nAjoutez chaque joueurs normalement avec un retour à la ligne entre chacuns (maj + entré)
-        \n\nVous devez ajouter au minimum le pseudo et les persos joués dans l'ordre.
-        \n\nVous pouvez aussi ajouter sa team, sa ville, et si il possède un compte discord, son id pour qu'il puisse modifier lui-même son compte.
-        \n\nVous pouvez récupérer l'id avec les options de developpeur (activez-les dans l'onglet Apparence des paramètres de l'utilisateur, puis faites un clic droit sur l'utilisateur et sélectionnez \"Copier ID\".)
-        \n\n\nExamples :
-        \n- !massadd Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>
-        \nred <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
-
-        try:
-            await self.do_massadd(ctx, arguments)
-        except:
-            rollbar.report_exc_info()
-            raise
 
     async def do_massadd(self, ctx, arguments):
         failed_lines = []
@@ -842,3 +778,113 @@ class Smashtheque(commands.Cog):
                     else:
                         await generic_error(ctx, erreur)
                         break
+
+    # -------------------------------------------------------------------------
+    # COMMANDS
+    # -------------------------------------------------------------------------
+
+    @commands.command(usage="<nom>")
+    async def ajouterville(self, ctx, *, name):
+        """cette commande va vous permettre d'ajouter une ville dans la Smashthèque.
+        \n\nVous devez préciser son nom.
+        \n\n\nExemples : \n- !ajouterville Paris\n- !ajouterville Lyon\n"""
+
+        try:
+            await self.do_addcity(ctx, name)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command(usage="<pseudo> <emotes de persos> [team] [ville] [ID Discord]")
+    async def ajouterjoueur(self, ctx, *, arg):
+        """cette commande va vous permettre d'ajouter un joueur dans la Smashthèque.
+        \n\nVous devez ajouter au minimum le pseudo et les personnages joués (dans l'ordre).
+        \n\nVous pouvez aussi ajouter sa team, sa ville et, s'il possède un compte Discord, son ID pour qu'il puisse modifier lui-même son compte.
+        \n\nVous pouvez récupérer l'ID avec les options de developpeur (activez-les dans l'onglet Apparence des paramètres de l'utilisateur, puis faites un clic droit sur l'utilisateur et sélectionnez \"Copier ID\".)
+        \n\n\nExemples : \n- !ajouterjoueur Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>\n- !ajouterjoueur red <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
+        """
+        current_stage représente l'argument a process.
+        0 = le nom
+        1 = les émojis de perso
+        2 = la team
+        3 = la ville
+        4 = l'id discord
+        """
+
+        try:
+            await self.do_addplayer(ctx, arg)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command(usage="<pseudo>")
+    async def jesuis(self, ctx, *, pseudo):
+        """cette commande va vous permettre d'associer votre compte Discord à un joueur de la Smashthèque.
+        \n\nVous devez préciser un pseudo.
+        \n\n\nExemples : \n- !jesuis Pixel\n- !jesuis red\n"""
+
+        try:
+            await self.do_link(ctx, pseudo, ctx.author.id)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command(usage="<pseudo> <ID Discord>")
+    @commands.admin_or_permissions(administrator=True)
+    async def associer(self, ctx, *, arg):
+        """cette commande va vous permettre d'associer un compte Discord à un joueur de la Smashthèque.
+        \n\nVous devez préciser son pseudo et son ID Discord.
+        \n\n\nExemples : \n- !associer Pixel 608210202952466464\n- !associer red 332894758076678144\n"""
+
+        try:
+            args = arg.split()
+            pseudo = ' '.join(args[:-1])
+            discord_id = args[-1]
+            await self.do_link(ctx, pseudo, discord_id)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command()
+    @commands.is_owner()
+    async def jenesuispas(self, ctx):
+        """cette commande permet de dissocier votre compte Discord d'un joueur de la Smashthèque.
+        \n\n\nExemples : \n- !jenesuispas\n"""
+
+        try:
+            await self.do_unlink(ctx, ctx.author.id)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command(usage="<ID Discord>")
+    # @commands.admin_or_permissions(administrator=True)
+    async def dissocier(self, ctx, *, discord_id):
+        """cette commande permet de dissocier un compte Discord d'un joueur de la Smashthèque.
+        \n\nVous devez préciser son ID Discord.
+        \n\n\nExemples : \n- !dissocier 608210202952466464\n- !dissocier 332894758076678144\n"""
+
+        try:
+            await self.do_unlink(ctx, discord_id)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command()
+    @commands.is_owner()
+    async def massadd(self, ctx, *, arguments):
+        """cette commande va vous permettre d'ajouter **plusieurs** joueurs dans la base de données de smashthèque.
+        \n\nAjoutez chaque joueurs normalement avec un retour à la ligne entre chacuns (maj + entré)
+        \n\nVous devez ajouter au minimum le pseudo et les persos joués dans l'ordre.
+        \n\nVous pouvez aussi ajouter sa team, sa ville, et si il possède un compte discord, son id pour qu'il puisse modifier lui-même son compte.
+        \n\nVous pouvez récupérer l'id avec les options de developpeur (activez-les dans l'onglet Apparence des paramètres de l'utilisateur, puis faites un clic droit sur l'utilisateur et sélectionnez \"Copier ID\".)
+        \n\n\nExamples :
+        \n- !massadd Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>
+        \nred <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
+
+        try:
+            await self.do_massadd(ctx, arguments)
+        except:
+            rollbar.report_exc_info()
+            raise
+
