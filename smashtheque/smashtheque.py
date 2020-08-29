@@ -15,11 +15,6 @@ import sys
 from collections.abc import Mapping
 from collections import UserDict
 
-api_base_url = ''
-def api_url(collection):
-    return f"{api_base_url}/api/v1/{collection}"
-
-
 async def yeet(ctx, erreur):
     """lever des erreurs"""
     embed = discord.Embed(
@@ -47,13 +42,6 @@ async def uniqueyeet(ctx, erreur, playername):
         icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
     )
     await ctx.send(embed=embed)
-
-async def id_to_name(id_find, url, self):
-    """obsolète transformer une id arbitraire en string human freindly"""
-    async with self._session.get(api_url(url)) as r:
-        result = await r.json()
-        non_conflict_name_list = loop_dict(result, "id", id_find)
-        return non_conflict_name_list["name"]
 
 
 def loop_dict(dict_to_use, value, parameter):
@@ -97,13 +85,12 @@ class CharactersCacheNotFetched(Error):
 
 class Smashtheque(commands.Cog):
     async def initialize(self):
-        global api_base_url
         if 'SMASHTHEQUE_API_URL' in os.environ and os.environ['SMASHTHEQUE_API_URL']:
-            api_base_url = os.environ['SMASHTHEQUE_API_URL']
+            self.api_base_url = os.environ['SMASHTHEQUE_API_URL']
         else:
             api_base_url = await self.bot.get_shared_api_tokens("smashtheque")
-            api_base_url = api_base_url["url"]
-        print(f"Smashthèque API base URL set to {api_base_url}")
+            self.api_base_url = api_base_url["url"]
+        print(f"Smashthèque API base URL set to {self.api_base_url}")
         if 'ROLLBAR_TOKEN' in os.environ and os.environ['ROLLBAR_TOKEN']:
             rollbar_token = os.environ['ROLLBAR_TOKEN']
         else:
@@ -130,9 +117,13 @@ class Smashtheque(commands.Cog):
     def cog_unload(self):
         asyncio.create_task(self._session.close())
 
+    def api_url(self, collection):
+        return f"{self.api_base_url}/api/v1/{collection}"
+
+
     async def fetch_characters(self):
         print('fetch_characters')
-        async with self._session.get(api_url("characters")) as response:
+        async with self._session.get(self.api_url("characters")) as response:
             characters = await response.json()
             # puts values in cache before responding
             for character in characters:
@@ -157,7 +148,7 @@ class Smashtheque(commands.Cog):
         return None
 
     async def find_team_by_short_name(self, short_name):
-        request_url = "{0}?by_short_name_like={1}".format(api_url("teams"), short_name)
+        request_url = "{0}?by_short_name_like={1}".format(self.api_url("teams"), short_name)
         async with self._session.get(request_url) as response:
             teams = await response.json()
             if teams != []:
@@ -169,7 +160,7 @@ class Smashtheque(commands.Cog):
                 return None
 
     async def find_city_by_name(self, name):
-        request_url = "{0}?by_name_like={1}".format(api_url("cities"), name)
+        request_url = "{0}?by_name_like={1}".format(self.api_url("cities"), name)
         async with self._session.get(request_url) as response:
             cities = await response.json()
             if cities != []:
@@ -250,7 +241,7 @@ class Smashtheque(commands.Cog):
     async def create_player(self, ctx, player):
         print(f"create player {player}")
         payload = {"player": player}
-        async with self._session.post(api_url("players"), json=payload) as r:
+        async with self._session.post(self.api_url("players"), json=payload) as r:
             if r.status == 422:
                 result = await r.json()
                 erreur = Map(result)
@@ -258,7 +249,7 @@ class Smashtheque(commands.Cog):
                 if erreur.errors["name"] == "already_known":
                     alts = []
                     for i in erreur.errors["existing_ids"]:
-                        player_url = api_url("players")
+                        player_url = self.api_url("players")
                         player_url += "/"
                         player_url += str(i)
                         async with self._session.get(player_url) as r:
@@ -474,7 +465,7 @@ class Smashtheque(commands.Cog):
     @commands.command()
     @commands.admin_or_permissions(administrator=True)
     async def claim(self, ctx, *, pseudo):
-        discord_url = "{0}?by_discord_id={1}".format(api_url("players"), ctx.author.id)
+        discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), ctx.author.id)
         async with self._session.get(discord_url) as r:
             users = await r.json()
             if await r.json() != []:
@@ -483,7 +474,7 @@ class Smashtheque(commands.Cog):
                 self.embed_player(embed, users)
                 await ctx.send(embed=embed)
                 return
-        player_url = "{0}?by_name_like={1}".format(api_url("players"), pseudo)
+        player_url = "{0}?by_name_like={1}".format(self.api_url("players"), pseudo)
         async with self._session.get(player_url) as r:
             result = await r.json()
         if len(result) == 0:
@@ -510,7 +501,7 @@ class Smashtheque(commands.Cog):
                 await ctx.send("Commande annulée")
             if pred.result is True:
                 await temp_message.delete()
-                player_url = "{0}/{1}".format(api_url("players"), users.id)
+                player_url = "{0}/{1}".format(self.api_url("players"), users.id)
                 response = {"player": {"discord_id": str(ctx.author.id)}}
                 print(player_url)
                 print(response)
@@ -532,7 +523,7 @@ class Smashtheque(commands.Cog):
                 await ctx.send("Commande annulée")
             if type(pred.result) == int:
                 await temp_message.delete()
-                player_url = "{0}/{1}".format(api_url("players"), result[pred.result]["id"])
+                player_url = "{0}/{1}".format(self.api_url("players"), result[pred.result]["id"])
                 async with self._session.get(player_url) as r:
                     result = await r.json()
                 if result["discord_id"] == None:
@@ -551,7 +542,7 @@ class Smashtheque(commands.Cog):
     @commands.command()
     @commands.is_owner()
     async def unclaim(self, ctx):
-        discord_url = "{0}?by_discord_id={1}".format(api_url("players"), ctx.author.id)
+        discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), ctx.author.id)
         async with self._session.get(discord_url) as r:
             users = await r.json()
             if await r.json() != []:
@@ -573,7 +564,7 @@ class Smashtheque(commands.Cog):
                     return
                 if pred.result is True:
                     await temp_message.delete()
-                    player_url = "{0}/{1}".format(api_url("players"), users.id)
+                    player_url = "{0}/{1}".format(self.api_url("players"), users.id)
                     response = {"player": {"discord_id": None}}
                     await self._session.patch(player_url, json=response)
                     embed = discord.Embed(
@@ -663,7 +654,7 @@ class Smashtheque(commands.Cog):
                     if argu.isdigit() == True and len(str(argu)) == 18:
                         response["discord_id"] = str(argu)
                         break
-                    async with self._session.get(api_url("teams")) as r:
+                    async with self._session.get(self.api_url("teams")) as r:
                         result = await r.json()
                         for i in result:
                             if i["short_name"].lower() == argu.lower():
@@ -671,7 +662,7 @@ class Smashtheque(commands.Cog):
                                 break
                         if "team_id" not in response:
                             # check si une ville est trouvé si aucune team l'est
-                            async with self._session.get(api_url("cities")) as r:
+                            async with self._session.get(self.api_url("cities")) as r:
                                 result = await r.json()
                                 for i in result:
                                     if i["name"].lower() == argu.lower():
@@ -693,7 +684,7 @@ class Smashtheque(commands.Cog):
                     if argu.isdigit() == True and len(str(argu)) == 18:
                         response["discord_id"] = str(argu)
                         break
-                    async with self._session.get(api_url("cities")) as r:
+                    async with self._session.get(self.api_url("cities")) as r:
                         result = await r.json()
                         for i in result:
                             if i["name"].lower() == argu.lower():
@@ -722,14 +713,14 @@ class Smashtheque(commands.Cog):
             response["creator_discord_id"] = str(ctx.author.id)
             response["name"] = response["name"].rstrip()
             response = {"player": response}
-            async with self._session.post(api_url("players"), json=response) as r:
+            async with self._session.post(self.api_url("players"), json=response) as r:
                 if r.status == 422:
                     result = await r.json()
                     erreur = Map(result)
                     print(erreur.errors["name"])
                     if erreur.errors["name"] == "already_known":
                         for i in erreur.errors["existing_ids"]:
-                            player_url = api_url("players")
+                            player_url = self.api_url("players")
                             player_url += "/"
                             player_url += str(i)
                             async with self._session.get(player_url) as r:
@@ -758,7 +749,7 @@ class Smashtheque(commands.Cog):
                             await temp_message.delete()
                             response["player"]["name_confirmation"] = True
                             print(response)
-                            async with self._session.post(api_url("players"), json=response) as r:
+                            async with self._session.post(self.api_url("players"), json=response) as r:
                                 print(r)
                         else:
                             await ctx.send("Commande annulée")
