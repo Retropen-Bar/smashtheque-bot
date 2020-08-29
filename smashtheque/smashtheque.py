@@ -571,7 +571,7 @@ class Smashtheque(commands.Cog):
                         await ctx.send(embed=embed)
 
     async def do_unlink(self, ctx, target_member):
-        discord_id = terget_member.id
+        discord_id = target_member.id
         discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), discord_id)
         async with self._session.get(discord_url) as r:
             users = await r.json()
