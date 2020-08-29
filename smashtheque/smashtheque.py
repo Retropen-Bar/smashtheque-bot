@@ -326,22 +326,27 @@ class Smashtheque(commands.Cog):
         print(f"create city {name}")
         payload = {"name": name}
         async with self._session.post(self.api_url("cities"), json=payload) as r:
+            if r.status == 201:
+                # city creation went fine
+                embed = discord.Embed(
+                    title=f"\"I guess it's done!\". La ville a été ajoutée à la base de données.",
+                    colour=discord.Colour(0xA54C4C),
+                )
+                await ctx.send(embed=embed)
+                return
+
             if r.status == 422:
                 result = await r.json()
                 erreur = Map(result)
                 print(erreur.errors["name"])
-                if erreur.errors["name"] == "unique":
+                if erreur.errors["name"] == ["not_unique"]:
                     await yeet(ctx, "Cette ville existe déjà dans la Smashthèque.")
                     return
+
+            # something went wrong but we don't know what
             await generic_error(ctx, r)
             return
 
-        # city creation wen fine
-        embed = discord.Embed(
-            title=f"\"I guess it's done!\". La ville a été ajoutée à la base de données.",
-            colour=discord.Colour(0xA54C4C),
-        )
-        await ctx.send(embed=embed)
 
     @commands.command(usage="<pseudo> <emotes de persos> [team] [ville] [id discord]")
     async def ajouterjoueur(self, ctx, *, arg):
