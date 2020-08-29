@@ -43,6 +43,9 @@ async def uniqueyeet(ctx, erreur, playername):
     )
     await ctx.send(embed=embed)
 
+async def generic_error(ctx, error):
+    await yeet(ctx, "T'as cassé le bot, GG. Tu peux contacter <@332894758076678144> ou <@608210202952466464> s'il te plaît ?")
+    rollbar.report_exc_info(sys.exc_info(), error)
 
 def loop_dict(dict_to_use, value, parameter):
     """trouver une entrée dans un dictionnaire"""
@@ -297,11 +300,7 @@ class Smashtheque(commands.Cog):
                         await temp_message.delete()
                         return
                 else:
-                    yeet(
-                        ctx,
-                        "t'a cassé le bot, GG. tu peut contacter red#4356 ou Pixel#3291 s'il te plait ?",
-                    )
-                    rollbar.report_exc_info(sys.exc_info(), erreur)
+                    await generic_error(ctx, erreur)
                     return
 
         # player creation wen fine
@@ -311,13 +310,46 @@ class Smashtheque(commands.Cog):
         )
         await ctx.send(embed=embed)
 
+    @commands.command(usage="<nom>")
+    async def ajouterville(self, ctx, *, name):
+        """cette commande va vous permettre d'ajouter une ville dans la Smashthèque.
+        \n\nVous devez préciser son nom.
+        \n\n\nExemples : \n- !ajouterville Paris\n- !ajouterville Lyon\n"""
+
+        try:
+            await self.do_addcity(ctx, name)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    async def do_addcity(self, ctx, name):
+        print(f"create city {name}")
+        payload = {"name": name}
+        async with self._session.post(self.api_url("cities"), json=payload) as r:
+            if r.status == 422:
+                result = await r.json()
+                erreur = Map(result)
+                print(erreur.errors["name"])
+                if erreur.errors["name"] == "unique":
+                    await yeet(ctx, "Cette ville existe déjà dans la Smashthèque.")
+                    return
+            await generic_error(ctx, r)
+            return
+
+        # city creation wen fine
+        embed = discord.Embed(
+            title=f"\"I guess it's done!\". La ville a été ajoutée à la base de données.",
+            colour=discord.Colour(0xA54C4C),
+        )
+        await ctx.send(embed=embed)
+
     @commands.command(usage="<pseudo> <emotes de persos> [team] [ville] [id discord]")
-    async def addplayer(self, ctx, *, arg):
+    async def ajouterjoueur(self, ctx, *, arg):
         """cette commande va vous permettre d'ajouter un joueur dans la Smashthèque.
         \n\nVous devez ajouter au minimum le pseudo et les personnages joués (dans l'ordre).
         \n\nVous pouvez aussi ajouter sa team, sa ville et, s'il possède un compte Discord, son ID pour qu'il puisse modifier lui-même son compte.
         \n\nVous pouvez récupérer l'ID avec les options de developpeur (activez-les dans l'onglet Apparence des paramètres de l'utilisateur, puis faites un clic droit sur l'utilisateur et sélectionnez \"Copier ID\".)
-        \n\n\nExemples : \n- !addplayer Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>\n- !addplayer red <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
+        \n\n\nExemples : \n- !ajouterjoueur Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>\n- !ajouterjoueur red <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
         """
         current_stage représente l'argument a process.
         0 = le nom
@@ -500,7 +532,7 @@ class Smashtheque(commands.Cog):
             users = await r.json()
             if await r.json() != []:
                 users = Map(users[0])
-                embed = discord.Embed(title="Un joueur est déjà associé à votre compte Discord. Utilisez `!unclaim` pour dissocier votre compte Discord de ce joueur.")
+                embed = discord.Embed(title="Un joueur est déjà associé à votre compte Discord. Contactez un admin pour dissocier votre compte Discord de ce joueur.")
                 self.embed_player(embed, users)
                 await ctx.send(embed=embed)
                 return
@@ -508,7 +540,7 @@ class Smashtheque(commands.Cog):
         async with self._session.get(player_url) as r:
             result = await r.json()
         if len(result) == 0:
-            embed = discord.Embed(title="Ce pseudo n'existe pas.\nUtilisez la commande `!addplayer` pour l'ajouter.\n")
+            embed = discord.Embed(title="Ce pseudo n'existe pas.\nUtilisez la commande `!ajouterjoueur` pour l'ajouter.\n")
             await ctx.send(embed=embed)
             return
         if len(result) == 1:
@@ -803,9 +835,5 @@ class Smashtheque(commands.Cog):
                             await temp_message.delete()
                             break
                     else:
-                        uniqueyeet(
-                            ctx,
-                            "t'a cassé le bot, GG. tu peut contacter red#4356 ou Pixel#3291 s'il te plait ?", x
-                        )
-                        rollbar.report_exc_info(sys.exc_info(), erreur)
+                        await generic_error(ctx, erreur)
                         break
