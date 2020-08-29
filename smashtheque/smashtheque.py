@@ -570,7 +570,8 @@ class Smashtheque(commands.Cog):
                         )
                         await ctx.send(embed=embed)
 
-    async def do_unlink(self, ctx, discord_id):
+    async def do_unlink(self, ctx, target_member):
+        discord_id = terget_member.id
         discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), discord_id)
         async with self._session.get(discord_url) as r:
             users = await r.json()
@@ -859,13 +860,13 @@ class Smashtheque(commands.Cog):
 
     @commands.command(usage="<ID Discord>")
     # @commands.admin_or_permissions(administrator=True)
-    async def dissocier(self, ctx, *, discord_id):
+    async def dissocier(self, ctx, *, target_member: discord.Member):
         """cette commande permet de dissocier un compte Discord d'un joueur de la Smashthèque.
         \n\nVous devez préciser son ID Discord.
         \n\n\nExemples : \n- !dissocier 608210202952466464\n- !dissocier 332894758076678144\n"""
 
         try:
-            await self.do_unlink(ctx, discord_id)
+            await self.do_unlink(ctx, target_member)
         except:
             rollbar.report_exc_info()
             raise
