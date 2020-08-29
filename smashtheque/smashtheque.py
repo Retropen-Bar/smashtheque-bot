@@ -85,31 +85,45 @@ class CharactersCacheNotFetched(Error):
 
 class Smashtheque(commands.Cog):
     async def initialize(self):
-        if 'SMASHTHEQUE_API_URL' in os.environ and os.environ['SMASHTHEQUE_API_URL']:
-            self.api_base_url = os.environ['SMASHTHEQUE_API_URL']
-        else:
-            api_base_url = await self.bot.get_shared_api_tokens("smashtheque")
-            self.api_base_url = api_base_url["url"]
-        print(f"Smashthèque API base URL set to {self.api_base_url}")
         if 'ROLLBAR_TOKEN' in os.environ and os.environ['ROLLBAR_TOKEN']:
             rollbar_token = os.environ['ROLLBAR_TOKEN']
+            if 'ROLLBAR_ENV' in os.environ and os.environ['ROLLBAR_ENV']:
+                rollbar_env = os.environ['ROLLBAR_ENV']
+            else:
+                rollbar_env = 'production'
+
         else:
             rollbar_token = await self.bot.get_shared_api_tokens("smashtheque")
             rollbar_token = rollbar_token["token"]
-        rollbar.init(rollbar_token)
-        if 'SMASHTHEQUE_API_TOKEN' in os.environ and os.environ['SMASHTHEQUE_API_TOKEN']:
-            bearer = os.environ['SMASHTHEQUE_API_TOKEN']
-        else:
-            bearer = await self.bot.get_shared_api_tokens("smashtheque")
-            bearer = bearer["bearer"]
-        headers = {
-            "Authorization": f"Bearer {bearer}",
-            "Content-Type": "application/json",
-        }
-        self._session = aiohttp.ClientSession(headers=headers)
-        self._characters_cache = {}
-        self._cities_cache = {}
-        self._teams_cache = {}
+            if 'environment' in rollbar_token:
+                rollbar_env = rollbar_token["environment"]
+            else:
+                rollbar_env = 'production'
+        rollbar.init(rollbar_token, rollbar_env)
+
+        try:
+            if 'SMASHTHEQUE_API_URL' in os.environ and os.environ['SMASHTHEQUE_API_URL']:
+                self.api_base_url = os.environ['SMASHTHEQUE_API_URL']
+            else:
+                api_base_url = await self.bot.get_shared_api_tokens("smashtheque")
+                self.api_base_url = api_base_url["url"]
+            print(f"Smashthèque API base URL set to {self.api_base_url}")
+            if 'SMASHTHEQUE_API_TOKEN' in os.environ and os.environ['SMASHTHEQUE_API_TOKEN']:
+                bearer = os.environ['SMASHTHEQUE_API_TOKEN']
+            else:
+                bearer = await self.bot.get_shared_api_tokens("smashtheque")
+                bearer = bearer["bearer"]
+            headers = {
+                "Authorization": f"Bearer {bearer}",
+                "Content-Type": "application/json",
+            }
+            self._session = aiohttp.ClientSession(headers=headers)
+            self._characters_cache = {}
+            self._cities_cache = {}
+            self._teams_cache = {}
+        except:
+            rollbar.report_exc_info()
+            raise
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -298,7 +312,7 @@ class Smashtheque(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(usage="<pseudo> <emotes de persos> [team] [ville] [id discord]")
-    async def apite(self, ctx, *, arg):
+    async def addplayer(self, ctx, *, arg):
         """cette commande va vous permettre d'ajouter un joueur dans la Smashthèque.
         \n\nVous devez ajouter au minimum le pseudo et les personnages joués (dans l'ordre).
         \n\nVous pouvez aussi ajouter sa team, sa ville et, s'il possède un compte Discord, son ID pour qu'il puisse modifier lui-même son compte.
@@ -312,6 +326,15 @@ class Smashtheque(commands.Cog):
         3 = la ville
         4 = l'id discord
         """
+
+        try:
+            await self.do_addplayer(ctx, arg)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+
+    async def do_addplayer(self, ctx, arg):
 
         # fetch characters once
         await self.fetch_characters()
@@ -465,6 +488,13 @@ class Smashtheque(commands.Cog):
     @commands.command()
     @commands.admin_or_permissions(administrator=True)
     async def claim(self, ctx, *, pseudo):
+        try:
+            await self.do_claim(ctx, pseudo)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    async def do_claim(self, ctx, pseudo):
         discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), ctx.author.id)
         async with self._session.get(discord_url) as r:
             users = await r.json()
@@ -542,6 +572,13 @@ class Smashtheque(commands.Cog):
     @commands.command()
     @commands.is_owner()
     async def unclaim(self, ctx):
+        try:
+            await self.do_unclaim(ctx)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    async def do_unclaim(self, ctx):
         discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), ctx.author.id)
         async with self._session.get(discord_url) as r:
             users = await r.json()
@@ -576,6 +613,8 @@ class Smashtheque(commands.Cog):
                     await ctx.send("Commande annulée")
                     await temp_message.delete()
                     return
+
+
     @commands.command()
     @commands.is_owner()
     async def massadd(self, ctx, *, arguments):
@@ -587,6 +626,14 @@ class Smashtheque(commands.Cog):
         \n\n\nExamples :
         \n- !massadd Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>
         \nred <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
+
+        try:
+            await self.do_massadd(ctx, arguments)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    async def do_massadd(self, ctx, arguments):
         failed_lines = []
         args_split = arguments.splitlines()
         processed_players = []
