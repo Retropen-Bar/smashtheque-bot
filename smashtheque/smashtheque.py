@@ -853,7 +853,7 @@ class Smashtheque(commands.Cog):
         \n\n\nExemples : \n- !jenesuispas\n"""
 
         try:
-            await self.do_unlink(ctx, ctx.author.id)
+            await self.do_unlink(ctx, ctx.author)
         except:
             rollbar.report_exc_info()
             raise
