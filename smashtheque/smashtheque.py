@@ -259,11 +259,21 @@ class Smashtheque(commands.Cog):
         print(f"create player {player}")
         payload = {"player": player}
         async with self._session.post(self.api_url("players"), json=payload) as r:
+            if r.status == 201:
+                # player creation wen fine
+                player_name = player["name"]
+                embed = discord.Embed(
+                    title=f"\"I guess it's done!\".\nLe joueur {player_name} a été ajouté à la Smashthèque.",
+                    colour=discord.Colour(0xA54C4C),
+                )
+                await ctx.send(embed=embed)
+                return
+
             if r.status == 422:
                 result = await r.json()
                 erreur = Map(result)
-                print(erreur.errors["name"])
-                if erreur.errors["name"] == "already_known":
+                print(f"errors: {erreur.errors}")
+                if "name" in erreur.errors and erreur.errors["name"] == "already_known":
                     alts = []
                     for i in erreur.errors["existing_ids"]:
                         player_url = self.api_url("players")
@@ -299,16 +309,12 @@ class Smashtheque(commands.Cog):
                         await ctx.send("Commande annulée")
                         await temp_message.delete()
                         return
+                elif "discord_user" in erreur.errors and erreur.errors["discord_user"] == ["already_taken"]:
+                    await yeet(ctx, "Ce compte Discord est déjà relié à un autre joueur dans la Smashthèque.")
+                    return
                 else:
                     await generic_error(ctx, erreur)
                     return
-
-        # player creation wen fine
-        embed = discord.Embed(
-            title=f"\"I guess it's done!\".\nLe joueur a été ajouté à la base de données.",
-            colour=discord.Colour(0xA54C4C),
-        )
-        await ctx.send(embed=embed)
 
     async def do_addcity(self, ctx, name):
         print(f"create city {name}")
