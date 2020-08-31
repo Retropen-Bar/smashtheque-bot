@@ -263,7 +263,7 @@ class Smashtheque(commands.Cog):
                 # player creation wen fine
                 player_name = player["name"]
                 embed = discord.Embed(
-                    title=f"\"I guess it's done!\".\nLe joueur {player_name} a été ajouté à la Smashthèque.",
+                    title=f"\"I guess it's done!\".\nLe joueur {player_name} a été ajouté à la Smashthèque et est en attente de validation.",
                     colour=discord.Colour(0xA54C4C),
                 )
                 await ctx.send(embed=embed)
