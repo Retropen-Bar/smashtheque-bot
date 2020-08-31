@@ -122,7 +122,7 @@ class Smashtheque(commands.Cog):
             }
             self._session = aiohttp.ClientSession(headers=headers)
             self._characters_cache = {}
-            self._cities_cache = {}
+            self._locations_cache = {}
             self._teams_cache = {}
         except:
             rollbar.report_exc_info()
@@ -176,15 +176,15 @@ class Smashtheque(commands.Cog):
             else:
                 return None
 
-    async def find_city_by_name(self, name):
-        request_url = "{0}?by_name_like={1}".format(self.api_url("cities"), name)
+    async def find_location_by_name(self, name):
+        request_url = "{0}?by_name_like={1}".format(self.api_url("locations"), name)
         async with self._session.get(request_url) as response:
-            cities = await response.json()
-            if cities != []:
+            locations = await response.json()
+            if locations != []:
                 # puts values in cache before responding
-                for city in cities:
-                    self._cities_cache[str(city["id"])] = city
-                return cities[0]
+                for location in locations:
+                    self._locations_cache[str(location["id"])] = location
+                return locations[0]
             else:
                 return None
 
@@ -222,13 +222,13 @@ class Smashtheque(commands.Cog):
         if team_name != None:
             embed.add_field(name="Team", value=team_name, inline=True)
 
-        city_name = None
-        if "city" in _player and player.city != None:
-            city_name = player.city["name"]
-        elif "city_id" in _player and player.city_id != None:
-            city_name = self._cities_cache[str(player.city_id)]["name"]
-        if city_name != None:
-            embed.add_field(name="Ville", value=city_name, inline=True)
+        location_name = None
+        if "location" in _player and player.location != None:
+            location_name = player.location["name"]
+        elif "location_id" in _player and player.location_id != None:
+            location_name = self._locations_cache[str(player.location_id)]["name"]
+        if location_name != None:
+            embed.add_field(name="Localisation", value=location_name, inline=True)
 
     async def confirm_create_player(self, ctx, player):
         embed = discord.Embed(
@@ -316,14 +316,16 @@ class Smashtheque(commands.Cog):
                     await generic_error(ctx, erreur)
                     return
 
-    async def do_addcity(self, ctx, name):
-        print(f"create city {name}")
+    async def do_addlocation(self, ctx, name, country=False):
+        print(f"create location {name}")
         payload = {"name": name}
-        async with self._session.post(self.api_url("cities"), json=payload) as r:
+        if country:
+            payload["type"] = "Locations::Country"
+        async with self._session.post(self.api_url("locations"), json=payload) as r:
             if r.status == 201:
-                # city creation went fine
+                # location creation went fine
                 embed = discord.Embed(
-                    title=f"\"I guess it's done!\".\nLa ville a été ajoutée à la base de données.",
+                    title=f"\"I guess it's done!\".\nLa localisation {name} a été ajoutée à la base de données.",
                     colour=discord.Colour(0xA54C4C),
                 )
                 await ctx.send(embed=embed)
@@ -334,7 +336,7 @@ class Smashtheque(commands.Cog):
                 erreur = Map(result)
                 print(erreur.errors["name"])
                 if erreur.errors["name"] == ["not_unique"]:
-                    await yeet(ctx, "Cette ville existe déjà dans la Smashthèque.")
+                    await yeet(ctx, "Cette localisation existe déjà dans la Smashthèque.")
                     return
 
             # something went wrong but we don't know what
@@ -350,7 +352,7 @@ class Smashtheque(commands.Cog):
         # 0: pseudo
         # 1: characters
         # 2: team
-        # 3: city
+        # 3: location
         # 4: discord ID
 
         current_stage = 0
@@ -359,7 +361,7 @@ class Smashtheque(commands.Cog):
         response = {"name": "", "character_ids": [], "creator_discord_id": ""}
 
         # process each argument between spaces
-        # [name piece] [name piece] [emoji] [emoji] [team] [city] [discord ID]
+        # [name piece] [name piece] [emoji] [emoji] [team] [location] [discord ID]
         arguments = arg.split()
 
         for argu in arguments:
@@ -368,7 +370,7 @@ class Smashtheque(commands.Cog):
             if current_stage == 0:
                 print('stage 0')
                 # at this stage, the next argument could be a name piece
-                # ... [name piece] [emoji] [emoji] [team] [city] [discord ID]
+                # ... [name piece] [emoji] [emoji] [team] [location] [discord ID]
 
                 if is_emoji(argu):
                     if len(response["name"]) > 0:
@@ -392,7 +394,7 @@ class Smashtheque(commands.Cog):
             if current_stage == 1:
                 print('stage 1')
                 # at this stage, the next argument could be a character emoji
-                # ... [emoji] [emoji] [team] [city] [discord ID]
+                # ... [emoji] [emoji] [team] [location] [discord ID]
 
                 if not is_emoji(argu):
                     # we are actually done with the emojis, so go to stage 2
@@ -413,7 +415,7 @@ class Smashtheque(commands.Cog):
             if current_stage == 2:
                 print('stage 2')
                 # at this stage, the next argument could be a team
-                # ... [team] [city] [discord ID]
+                # ... [team] [location] [discord ID]
 
                 if is_discord_id(argu):
                     response["discord_id"] = str(argu)
@@ -432,22 +434,22 @@ class Smashtheque(commands.Cog):
             # without restarting the loop
             if current_stage == 3:
                 print('stage 3')
-                # at this stage, the next argument could be a city
-                # ... [city] [discord ID]
+                # at this stage, the next argument could be a location
+                # ... [location] [discord ID]
 
                 if is_discord_id(argu):
                     response["discord_id"] = str(argu)
                     break
 
-                city = await self.find_city_by_name(argu)
-                if city != None:
-                    response["city_id"] = city["id"]
+                location = await self.find_location_by_name(argu)
+                if location != None:
+                    response["location_id"] = location["id"]
                     current_stage = 4
                     continue
 
-                # nope, not a city
+                # nope, not a location
                 # so we have a problem here
-                # because argu is neither a city nor a Discord ID
+                # because argu is neither a location nor a Discord ID
                 # -> we could already stop here and raise an issue
 
                 current_stage = 4
@@ -464,25 +466,25 @@ class Smashtheque(commands.Cog):
                     break
 
                 # so we were unable to parse argu
-                if "city_id" in response and response["city_id"] != None:
-                    # we have a city, so we are pretty sure argu was supposed to be a Discord ID
+                if "location_id" in response and response["location_id"] != None:
+                    # we have a location, so we are pretty sure argu was supposed to be a Discord ID
                     await yeet(
                         ctx,
                         f"Veuillez entrer un ID Discord correct pour le joueur à ajouter : {argu} n'en est pas un.\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
                     )
                     return
                 elif "team_id" in response and response["team_id"] != None:
-                    # we have a team, so argu could be for a city or a Discord ID
+                    # we have a team, so argu could be for a location or a Discord ID
                     await yeet(
                         ctx,
-                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une ville, vous pouvez la créer avec !addcity.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
+                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec !addlocation.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
                     )
                     return
                 else:
-                    # we have no team and no city: argu could be for a team, a city or a Discord ID
+                    # we have no team and no location: argu could be for a team, a location or a Discord ID
                     await yeet(
                         ctx,
-                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une équipe, vous devez demander à un administrateur de la créer.\nS'il s'agit d'une ville, vous pouvez la créer avec !addcity.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
+                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une équipe, vous devez demander à un administrateur de la créer.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec !addlocation.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
                     )
                     return
 
@@ -688,14 +690,14 @@ class Smashtheque(commands.Cog):
                                 response["team_id"] = i["id"]
                                 break
                         if "team_id" not in response:
-                            # check si une ville est trouvé si aucune team l'est
-                            async with self._session.get(self.api_url("cities")) as r:
+                            # check si une localisation est trouvé si aucune team l'est
+                            async with self._session.get(self.api_url("locations")) as r:
                                 result = await r.json()
                                 for i in result:
                                     if i["name"].lower() == argu.lower():
-                                        response["city_id"] = i["id"]
+                                        response["location_id"] = i["id"]
                                         break
-                            if "city_id" not in response:
+                            if "location_id" not in response:
                                 await uniqueyeet(
                                     ctx,
                                     "Veuillez entrer un nom de team correct.\nPour ça, utilisez son tag.\nExample : `LoS` ou `RB`", x
@@ -711,16 +713,16 @@ class Smashtheque(commands.Cog):
                     if argu.isdigit() == True and len(str(argu)) == 18:
                         response["discord_id"] = str(argu)
                         break
-                    async with self._session.get(self.api_url("cities")) as r:
+                    async with self._session.get(self.api_url("locations")) as r:
                         result = await r.json()
                         for i in result:
                             if i["name"].lower() == argu.lower():
-                                response["city_id"] = i["id"]
+                                response["location_id"] = i["id"]
                                 break
-                        if "city_id" not in response:
+                        if "location_id" not in response:
                             await uniqueyeet(
                                 ctx,
-                                "Veuillez entrer un nom de ville correct.\nSi votre ville n'éxiste pas encore, demandez a un admin de l'ajouter.", x
+                                "Veuillez entrer un nom de localisation correct.\nSi la localisation souhaitée n'existe pas encore, utilisez !ajouterville ou !ajouterpays pour la créer.", x
                             )
                             break
                     current_stage = 4
@@ -731,7 +733,7 @@ class Smashtheque(commands.Cog):
                     else:
                         await uniqueyeet(
                             ctx,
-                            "veuillez entrer l'id discord du joueur à ajouter.\nPour avoir son ID, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites clic droit sur l'utilisateur > copier l'id.", x
+                            "veuillez entrer l'ID Discord du joueur à ajouter.\nPour avoir son ID, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites clic droit sur l'utilisateur > copier l'id.", x
                         )
                         break
                 loop += 1
@@ -797,26 +799,30 @@ class Smashtheque(commands.Cog):
         \n\n\nExemples : \n- !ajouterville Paris\n- !ajouterville Lyon\n"""
 
         try:
-            await self.do_addcity(ctx, name)
+            await self.do_addlocation(ctx, name)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<pseudo> <emotes de persos> [team] [ville] [ID Discord]")
+    @commands.command(usage="<nom>")
+    async def ajouterpays(self, ctx, *, name):
+        """cette commande va vous permettre d'ajouter un pays dans la Smashthèque.
+        \n\nVous devez préciser son nom.
+        \n\n\nExemples : \n- !ajouterpays Belgique\n"""
+
+        try:
+            await self.do_addlocation(ctx, name, country=True)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command(usage="<pseudo> <emotes de persos> [team] [localisation] [ID Discord]")
     async def ajouterjoueur(self, ctx, *, arg):
         """cette commande va vous permettre d'ajouter un joueur dans la Smashthèque.
         \n\nVous devez ajouter au minimum le pseudo et les personnages joués (dans l'ordre).
-        \n\nVous pouvez aussi ajouter sa team, sa ville et, s'il possède un compte Discord, son ID pour qu'il puisse modifier lui-même son compte.
+        \n\nVous pouvez aussi ajouter sa team, sa localisation et, s'il possède un compte Discord, son ID pour qu'il puisse modifier lui-même son compte.
         \n\nVous pouvez récupérer l'ID avec les options de developpeur (activez-les dans l'onglet Apparence des paramètres de l'utilisateur, puis faites un clic droit sur l'utilisateur et sélectionnez \"Copier ID\".)
         \n\n\nExemples : \n- !ajouterjoueur Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>\n- !ajouterjoueur red <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
-        """
-        current_stage représente l'argument a process.
-        0 = le nom
-        1 = les émojis de perso
-        2 = la team
-        3 = la ville
-        4 = l'id discord
-        """
 
         try:
             await self.do_addplayer(ctx, arg)
@@ -883,7 +889,7 @@ class Smashtheque(commands.Cog):
         """cette commande va vous permettre d'ajouter **plusieurs** joueurs dans la base de données de smashthèque.
         \n\nAjoutez chaque joueurs normalement avec un retour à la ligne entre chacuns (maj + entré)
         \n\nVous devez ajouter au minimum le pseudo et les persos joués dans l'ordre.
-        \n\nVous pouvez aussi ajouter sa team, sa ville, et si il possède un compte discord, son id pour qu'il puisse modifier lui-même son compte.
+        \n\nVous pouvez aussi ajouter sa team, sa localisation, et si il possède un compte discord, son id pour qu'il puisse modifier lui-même son compte.
         \n\nVous pouvez récupérer l'id avec les options de developpeur (activez-les dans l'onglet Apparence des paramètres de l'utilisateur, puis faites un clic droit sur l'utilisateur et sélectionnez \"Copier ID\".)
         \n\n\nExamples :
         \n- !massadd Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>
