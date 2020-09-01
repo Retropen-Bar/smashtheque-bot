@@ -152,7 +152,7 @@ class Smashtheque(commands.Cog):
     async def find_character_by_emoji_tag(self, ctx, emoji):
         if len(self._characters_cache) < 1:
             print(f"self._characters_cache = {self._characters_cache}")
-            raise CharactersCacheNotFetched
+            await self.fetch_characters()
         emoji_id = re.search(r"[0-9]+", emoji).group()
         for character_id in self._characters_cache:
             character = self._characters_cache[str(character_id)]
@@ -197,7 +197,6 @@ class Smashtheque(commands.Cog):
             idx += 1
 
     def embed_player(self, embed, _player, with_index=False, index=0):
-        print(f"embed player {_player}")
         player = Map(_player)
 
         alts_emojis = []
@@ -795,6 +794,92 @@ class Smashtheque(commands.Cog):
                     else:
                         await generic_error(ctx, erreur)
                         break
+    async def do_editname(self, ctx, new_name):
+        discord_id = ctx.author.id
+        discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), discord_id)
+        async with self._session.get(discord_url) as r:
+            users = await r.json()
+            if await r.json() != []:
+                users = users[0]
+                print(users)
+                response = {"player": {"name": new_name}}
+                player_url = "{0}/{1}".format(self.api_url("players"), users["id"])
+                async with self._session.patch(player_url, json=response) as r:
+                    embed = discord.Embed(title="infos mises à jour :")
+                    self.embed_player(embed, await r.json())
+                    await ctx.send(embed=embed)
+                    return
+            else:
+                embed = discord.Embed(title="votre compte discord n'est associé avec aucuns joueurs.\nUtilisez `!jesuis` pour lier votre compte.")
+                embed.set_author(
+                    name="smashthèque ",
+                    icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
+                )
+                await ctx.send(embed=embed)
+                return
+    async def do_addcharacter(self, ctx, new_characters):
+        discord_id = ctx.author.id
+        discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), discord_id)
+        async with self._session.get(discord_url) as r:
+            users = await r.json()
+            if await r.json() != []:
+                users = users[0]
+                character_id_list = users["character_ids"]
+                for emoji_raw in new_characters.split():
+                    char = await self.find_character_by_emoji_tag(ctx, emoji_raw)
+                    char_id = char["id"]
+                    print(f"################### {char_id}")
+                    character_id_list.append(char_id) 
+                print(character_id_list)
+                response = {"player": {"characters_ids": character_id_list}}
+                print(response)
+                player_url = "{0}/{1}".format(self.api_url("players"), users["id"])
+
+                async with self._session.patch(player_url, json=response) as r:
+                    embed = discord.Embed(title="infos mises à jour :")
+                    self.embed_player(embed, await r.json())
+                    await ctx.send(embed=embed)
+                    return
+            else:
+                embed = discord.Embed(title="votre compte discord n'est associé avec aucuns joueurs.\nUtilisez `!jesuis` pour lier votre compte.")
+                embed.set_author(
+                    name="smashthèque ",
+                    icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
+                )
+                await ctx.send(embed=embed)
+                return
+
+    async def do_removecharacter(self, ctx, new_characters):
+        discord_id = ctx.author.id
+        discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), discord_id)
+        async with self._session.get(discord_url) as r:
+            users = await r.json()
+            if await r.json() != []:
+                users = users[0]
+                character_id_list = users["character_ids"]
+                for emoji_raw in new_characters.split():
+                    char = await self.find_character_by_emoji_tag(ctx, emj)
+                    char_id = char["id"]
+                    if char_id in character_id_list:
+                        character_id_list.pop
+                response = {"player": {"characters_ids": character_id_list}}
+                print(response)
+                player_url = "{0}/{1}".format(self.api_url("players"), users["id"])
+
+                async with self._session.patch(player_url, json=response) as r:
+                    await ctx.send(r)
+                    embed = discord.Embed(title="infos mises à jour :")
+                    self.embed_player(embed, await r.json())
+                    await ctx.send(embed=embed)
+                    return
+            else:
+                embed = discord.Embed(title="votre compte discord n'est associé avec aucuns joueurs.\nUtilisez `!jesuis` pour lier votre compte.")
+                embed.set_author(
+                    name="smashthèque ",
+                    icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
+                )
+                await ctx.send(embed=embed)
+                return
 
     # -------------------------------------------------------------------------
     # COMMANDS
@@ -908,4 +993,19 @@ class Smashtheque(commands.Cog):
         except:
             rollbar.report_exc_info()
             raise
-
+    @commands.command()
+    @commands.is_owner()
+    async def changernom(self, ctx, *, nouveau_nom):
+        try:
+            await self.do_editname(ctx, nouveau_nom)
+        except: 
+            rollbar.report_exc_info()
+            raise
+    @commands.command()
+    @commands.is_owner()
+    async def ajouterperso(self, ctx, *, persos):
+        try:
+            await self.do_addcharacter(ctx, persos)
+        except: 
+            rollbar.report_exc_info()
+            raise
