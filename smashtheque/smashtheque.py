@@ -794,8 +794,8 @@ class Smashtheque(commands.Cog):
                     else:
                         await generic_error(ctx, erreur)
                         break
-    async def do_editname(self, ctx, new_name):
-        discord_id = ctx.author.id
+
+    async def do_editname(self, ctx, discord_id, new_name):
         discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), discord_id)
         async with self._session.get(discord_url) as r:
             users = await r.json()
@@ -810,13 +810,14 @@ class Smashtheque(commands.Cog):
                     await ctx.send(embed=embed)
                     return
             else:
-                embed = discord.Embed(title="votre compte discord n'est associé avec aucuns joueurs.\nUtilisez `!jesuis` pour lier votre compte.")
+                embed = discord.Embed(title="Votre compte Discord n'est associé à aucun joueur.\nUtilisez `!jesuis` pour associer votre compte à un joueur.")
                 embed.set_author(
                     name="smashthèque ",
                     icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
                 )
                 await ctx.send(embed=embed)
                 return
+
     async def do_addcharacter(self, ctx, new_characters):
         discord_id = ctx.author.id
         discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), discord_id)
@@ -993,14 +994,16 @@ class Smashtheque(commands.Cog):
         except:
             rollbar.report_exc_info()
             raise
+
     @commands.command()
     @commands.is_owner()
     async def changernom(self, ctx, *, nouveau_nom):
         try:
-            await self.do_editname(ctx, nouveau_nom)
+            await self.do_editname(ctx, ctx.author.id, nouveau_nom)
         except:
             rollbar.report_exc_info()
             raise
+
     @commands.command()
     @commands.is_owner()
     async def ajouterperso(self, ctx, *, persos):
