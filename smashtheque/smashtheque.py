@@ -153,7 +153,14 @@ class Smashtheque(commands.Cog):
         if len(self._characters_cache) < 1:
             print(f"self._characters_cache = {self._characters_cache}")
             await self.fetch_characters()
-        emoji_id = re.search(r"[0-9]+", emoji).group()
+        found = re.search(r"[0-9]+", emoji)
+        if found == None:
+            await yeet(
+                ctx,
+                f"Emoji {emoji} non reconnu : veuillez utiliser les émojis de personnages de ce serveur."
+            )
+            return None
+        emoji_id = found.group()
         for character_id in self._characters_cache:
             character = self._characters_cache[str(character_id)]
             if character["emoji"] == emoji_id:
@@ -368,8 +375,24 @@ class Smashtheque(commands.Cog):
                 result = await r.json()
                 erreur = Map(result)
                 print(f"errors: {erreur.errors}")
-                await generic_error(ctx, erreur)
-                return
+                if "name" in erreur.errors and erreur.errors["name"] == "already_known":
+                    alts = await self.find_player_by_ids(erreur.errors["existing_ids"])
+                    embed = discord.Embed(
+                        title="Un ou plusieurs autres joueurs utilisent ce pseudo.",
+                        colour=discord.Colour(0xA54C4C),
+                    )
+                    embed.set_footer(text="Réagissez avec ✅ pour confirmer et mettre à jour, ou\nréagissez avec ❎ pour annuler.")
+                    self.embed_players(embed, alts)
+                    doit = await self.ask_confirmation(ctx, embed)
+                    if doit:
+                        data["name_confirmation"] = True
+                        await self.update_player(ctx, player_id, data)
+                elif "discord_user" in erreur.errors and erreur.errors["discord_user"] == ["already_taken"]:
+                    await yeet(ctx, "Ce compte Discord est déjà relié à un autre joueur dans la Smashthèque.")
+                    return
+                else:
+                    await generic_error(ctx, erreur)
+                    return
 
     async def do_addlocation(self, ctx, name, country=False):
         print(f"create location {name}")
@@ -578,6 +601,9 @@ class Smashtheque(commands.Cog):
             doit = await self.ask_confirmation(ctx, embed)
             if not doit:
                 return
+            if player["discord_id"] != None:
+                await self.raise_message(ctx, "Il semblerait que ce joueur soit déjà associé à un compte Discord")
+                return
             await self.update_player(ctx, player["id"], {"discord_id": str(discord_id)})
             await self.show_confirmation(ctx, f"Le compte Discord {discord_id} est maintenant associé au joueur {pseudo}.")
             return
@@ -609,7 +635,8 @@ class Smashtheque(commands.Cog):
         if not doit:
             return
         await self.update_player(ctx, player["id"], {"discord_id": None})
-        await self.show_confirmation(ctx, f"Le compte Discord {discord_id} a été dissocié du joueur {player["name"]}.")
+        player_name = player["name"]
+        await self.show_confirmation(ctx, f"Le compte Discord {discord_id} a été dissocié du joueur {player_name}.")
 
     async def do_editname(self, ctx, discord_id, new_name):
         player = await self.find_player_by_discord_id(discord_id)
@@ -656,6 +683,7 @@ class Smashtheque(commands.Cog):
                 ctx,
                 f"Nous n'avons pas réussi à trouver l'équipe {team_short_name}.\nVous pouvez demander à un administrateur de la créer."
             )
+            return
         await self.update_player(ctx, player["id"], {"team_id": team["id"]})
 
     async def do_addcharacters(self, ctx, discord_id, emojis):
@@ -684,6 +712,9 @@ class Smashtheque(commands.Cog):
             char_id = char["id"]
             if char_id in character_ids:
                 character_ids.remove(char_id)
+        if len(character_ids) < 1:
+            await self.raise_message(ctx, "Un joueur doit jouer au moins un perso")
+            return
         await self.update_player(ctx, player["id"], {"character_ids": character_ids})
 
     async def do_replacecharacters(self, ctx, discord_id, emojis):
