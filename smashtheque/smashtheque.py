@@ -188,6 +188,15 @@ class Smashtheque(commands.Cog):
             else:
                 return None
 
+    async def raise_not_linked(self, ctx):
+        embed = discord.Embed(title="Votre compte Discord n'est associé à aucun joueur.\nUtilisez `!jesuis` pour associer votre compte à un joueur.")
+        embed.set_author(
+            name="smashthèque ",
+            icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
+        )
+        await ctx.send(embed=embed)
+        return
+
     def embed_players(self, embed, players, with_index=False):
         idx = 0
         for player in players:
@@ -314,6 +323,25 @@ class Smashtheque(commands.Cog):
                 else:
                     await generic_error(ctx, erreur)
                     return
+
+
+    async def update_player(self, ctx, player_id, data):
+        print(f"update player {player_id} with {data}")
+        payload = {"player": data}
+        player_url = "{0}/{1}".format(self.api_url("players"), player_id)
+        async with self._session.patch(player_url, json=payload) as r:
+            if r.status == 200:
+                embed = discord.Embed(title="Joueur mis à jour :")
+                self.embed_player(embed, await r.json())
+                await ctx.send(embed=embed)
+                return
+
+            if r.status == 422:
+                result = await r.json()
+                erreur = Map(result)
+                print(f"errors: {erreur.errors}")
+                await generic_error(ctx, erreur)
+                return
 
     async def do_addlocation(self, ctx, name, country=False):
         print(f"create location {name}")
@@ -801,25 +829,12 @@ class Smashtheque(commands.Cog):
             users = await r.json()
             if await r.json() != []:
                 users = users[0]
-                print(users)
-                response = {"player": {"name": new_name}}
-                player_url = "{0}/{1}".format(self.api_url("players"), users["id"])
-                async with self._session.patch(player_url, json=response) as r:
-                    embed = discord.Embed(title="infos mises à jour :")
-                    self.embed_player(embed, await r.json())
-                    await ctx.send(embed=embed)
-                    return
+                await self.update_player(ctx, users["id"], {"name": new_name})
             else:
-                embed = discord.Embed(title="Votre compte Discord n'est associé à aucun joueur.\nUtilisez `!jesuis` pour associer votre compte à un joueur.")
-                embed.set_author(
-                    name="smashthèque ",
-                    icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
-                )
-                await ctx.send(embed=embed)
+                await self.raise_not_linked(ctx)
                 return
 
-    async def do_addcharacter(self, ctx, new_characters):
-        discord_id = ctx.author.id
+    async def do_addcharacter(self, ctx, discord_id, new_characters):
         discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), discord_id)
         async with self._session.get(discord_url) as r:
             users = await r.json()
@@ -828,30 +843,17 @@ class Smashtheque(commands.Cog):
                 character_id_list = users["character_ids"]
                 for emoji_raw in new_characters.split():
                     char = await self.find_character_by_emoji_tag(ctx, emoji_raw)
+                    if char == None:
+                        return
                     char_id = char["id"]
                     print(f"################### {char_id}")
                     character_id_list.append(char_id)
-                print(character_id_list)
-                response = {"player": {"characters_ids": character_id_list}}
-                print(response)
-                player_url = "{0}/{1}".format(self.api_url("players"), users["id"])
-
-                async with self._session.patch(player_url, json=response) as r:
-                    embed = discord.Embed(title="infos mises à jour :")
-                    self.embed_player(embed, await r.json())
-                    await ctx.send(embed=embed)
-                    return
+                await self.update_player(ctx, users["id"], {"character_ids": character_id_list})
             else:
-                embed = discord.Embed(title="votre compte discord n'est associé avec aucuns joueurs.\nUtilisez `!jesuis` pour lier votre compte.")
-                embed.set_author(
-                    name="smashthèque ",
-                    icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
-                )
-                await ctx.send(embed=embed)
+                await self.raise_not_linked(ctx)
                 return
 
-    async def do_removecharacter(self, ctx, new_characters):
-        discord_id = ctx.author.id
+    async def do_removecharacter(self, ctx, discord_id, new_characters):
         discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), discord_id)
         async with self._session.get(discord_url) as r:
             users = await r.json()
@@ -859,27 +861,15 @@ class Smashtheque(commands.Cog):
                 users = users[0]
                 character_id_list = users["character_ids"]
                 for emoji_raw in new_characters.split():
-                    char = await self.find_character_by_emoji_tag(ctx, emj)
+                    char = await self.find_character_by_emoji_tag(ctx, emoji_raw)
+                    if char == None:
+                        return
                     char_id = char["id"]
                     if char_id in character_id_list:
-                        character_id_list.pop
-                response = {"player": {"characters_ids": character_id_list}}
-                print(response)
-                player_url = "{0}/{1}".format(self.api_url("players"), users["id"])
-
-                async with self._session.patch(player_url, json=response) as r:
-                    await ctx.send(r)
-                    embed = discord.Embed(title="infos mises à jour :")
-                    self.embed_player(embed, await r.json())
-                    await ctx.send(embed=embed)
-                    return
+                        character_id_list.remove(char_id)
+                await self.update_player(ctx, users["id"], {"character_ids": character_id_list})
             else:
-                embed = discord.Embed(title="votre compte discord n'est associé avec aucuns joueurs.\nUtilisez `!jesuis` pour lier votre compte.")
-                embed.set_author(
-                    name="smashthèque ",
-                    icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
-                )
-                await ctx.send(embed=embed)
+                await self.raise_not_linked(ctx)
                 return
 
     # -------------------------------------------------------------------------
@@ -1008,7 +998,17 @@ class Smashtheque(commands.Cog):
     @commands.is_owner()
     async def ajouterperso(self, ctx, *, persos):
         try:
-            await self.do_addcharacter(ctx, persos)
+            await self.do_addcharacter(ctx, ctx.author.id, persos)
         except:
             rollbar.report_exc_info()
             raise
+
+    @commands.command()
+    @commands.is_owner()
+    async def enleverperso(self, ctx, *, persos):
+        try:
+            await self.do_removecharacter(ctx, ctx.author.id, persos)
+        except:
+            rollbar.report_exc_info()
+            raise
+
