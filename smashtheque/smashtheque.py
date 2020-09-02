@@ -148,10 +148,9 @@ class Smashtheque(commands.Cog):
             # respond
             return characters
 
-    # this only works if self.fetch_characters() has been called at least once
     async def find_character_by_emoji_tag(self, ctx, emoji):
+        # fill cache if empty
         if len(self._characters_cache) < 1:
-            print(f"self._characters_cache = {self._characters_cache}")
             await self.fetch_characters()
         found = re.search(r"[0-9]+", emoji)
         if found == None:
