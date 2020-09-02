@@ -262,7 +262,7 @@ class Smashtheque(commands.Cog):
                 # player creation wen fine
                 player_name = player["name"]
                 embed = discord.Embed(
-                    title=f"\"I guess it's done!\".\nLe joueur {player_name} a été ajouté à la Smashthèque.",
+                    title=f"\"I guess it's done!\".\nLe joueur {player_name} a été ajouté à la Smashthèque et est en attente de validation.",
                     colour=discord.Colour(0xA54C4C),
                 )
                 await ctx.send(embed=embed)
@@ -476,14 +476,14 @@ class Smashtheque(commands.Cog):
                     # we have a team, so argu could be for a location or a Discord ID
                     await yeet(
                         ctx,
-                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec !addlocation.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
+                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec !ajouterville ou !ajouterpays.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
                     )
                     return
                 else:
                     # we have no team and no location: argu could be for a team, a location or a Discord ID
                     await yeet(
                         ctx,
-                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une équipe, vous devez demander à un administrateur de la créer.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec !addlocation.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
+                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une équipe, vous devez demander à un administrateur de la créer.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec !ajouterville ou !ajouterpays.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
                     )
                     return
 
@@ -829,7 +829,7 @@ class Smashtheque(commands.Cog):
                     char = await self.find_character_by_emoji_tag(ctx, emoji_raw)
                     char_id = char["id"]
                     print(f"################### {char_id}")
-                    character_id_list.append(char_id) 
+                    character_id_list.append(char_id)
                 print(character_id_list)
                 response = {"player": {"characters_ids": character_id_list}}
                 print(response)
@@ -998,7 +998,7 @@ class Smashtheque(commands.Cog):
     async def changernom(self, ctx, *, nouveau_nom):
         try:
             await self.do_editname(ctx, nouveau_nom)
-        except: 
+        except:
             rollbar.report_exc_info()
             raise
     @commands.command()
@@ -1006,6 +1006,6 @@ class Smashtheque(commands.Cog):
     async def ajouterperso(self, ctx, *, persos):
         try:
             await self.do_addcharacter(ctx, persos)
-        except: 
+        except:
             rollbar.report_exc_info()
             raise
