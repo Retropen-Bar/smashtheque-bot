@@ -662,6 +662,7 @@ class Smashtheque(commands.Cog):
                 ctx,
                 f"Nous n'avons pas réussi à trouver {location_name}.\nS'il s'agit d'une ville, vous pouvez l'ajouter à la Smashthèque avec !ajouterville.\nS'il s'agit d'un pays, vous pouvez l'ajouter à la Smashthèque avec !ajouterpays"
             )
+            return
         await self.update_player(ctx, player["id"], {"location_id": location["id"]})
 
     async def do_removeteam(self, ctx, discord_id):
