@@ -20,7 +20,7 @@ async def yeet(ctx, erreur):
     embed = discord.Embed(
         title=f"Erreur dans la commande {ctx.command} :",
         description=erreur,
-        colour=discord.Colour(0xD0021B),
+        colour=discord.Colour.red()
     )
     embed.set_author(
         name="smashthèque ",
@@ -35,7 +35,7 @@ async def uniqueyeet(ctx, erreur, playername):
     embed = discord.Embed(
         title=f"Erreur pendant le traitement de la ligne {playername} :",
         description=erreur,
-        colour=discord.Colour(0xD0021B),
+        colour=discord.Colour.red()
     )
     embed.set_author(
         name="smashthèque ",
@@ -270,7 +270,7 @@ class Smashtheque(commands.Cog):
         embed = discord.Embed(
             title="I guess it's done!",
             description=message,
-            colour=discord.Colour(0xA54C4C)
+            colour=discord.Colour.green()
         )
         await ctx.send(embed=embed)
 
@@ -318,7 +318,7 @@ class Smashtheque(commands.Cog):
     async def confirm_create_player(self, ctx, player):
         embed = discord.Embed(
             title="Vous allez créer le joueur suivant :",
-            colour=discord.Colour(0xA54C4C),
+            colour=discord.Colour.blue(),
         )
         embed.set_footer(text="Réagissez avec ✅ pour confirmer et créer ce joueur, ou réagissez avec ❎ pour annuler.")
         self.embed_player(embed, player)
@@ -344,7 +344,7 @@ class Smashtheque(commands.Cog):
                     alts = await self.find_player_by_ids(erreur.errors["existing_ids"])
                     embed = discord.Embed(
                         title="Un ou plusieurs joueurs possèdent le même pseudo que le joueur que vous souhaitez ajouter.",
-                        colour=discord.Colour(0xA54C4C),
+                        colour=discord.Colour.blue()
                     )
                     embed.set_footer(text="Réagissez avec ✅ pour confirmer et créer un nouveau joueur, ou\nréagissez avec ❎ pour annuler.")
                     self.embed_players(embed, alts)
@@ -378,7 +378,7 @@ class Smashtheque(commands.Cog):
                     alts = await self.find_player_by_ids(erreur.errors["existing_ids"])
                     embed = discord.Embed(
                         title="Un ou plusieurs autres joueurs utilisent ce pseudo.",
-                        colour=discord.Colour(0xA54C4C),
+                        colour=discord.Colour.blue()
                     )
                     embed.set_footer(text="Réagissez avec ✅ pour confirmer et mettre à jour, ou\nréagissez avec ❎ pour annuler.")
                     self.embed_players(embed, alts)
@@ -594,7 +594,7 @@ class Smashtheque(commands.Cog):
             player = players[0]
             embed = discord.Embed(
                 title="Joueur trouvé :",
-                colour=discord.Colour(0xA54C4C),
+                colour=discord.Colour.blue()
             )
             self.embed_player(embed, player)
             doit = await self.ask_confirmation(ctx, embed)
@@ -610,7 +610,7 @@ class Smashtheque(commands.Cog):
         # multiple players found: ask which one
         embed = discord.Embed(
             title="Plusieurs joueurs ont ce pseudo.\nChoisissez le bon joueur dans la liste ci-dessous grâce aux réactions",
-            colour=discord.Colour(0xA54C4C)
+            colour=discord.Colour.blue()
         )
         self.embed_players(embed, players, with_index=True)
         choice = await self.ask_choice(ctx, embed, len(players))
