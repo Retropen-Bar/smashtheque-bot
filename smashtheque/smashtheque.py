@@ -614,7 +614,7 @@ class Smashtheque(commands.Cog):
         )
         self.embed_players(embed, players, with_index=True)
         choice = await self.ask_choice(ctx, embed, len(players))
-        player = players[choice]["id"]
+        player = players[choice]
         if player["discord_id"] != None:
             await self.raise_message(ctx, "Il semblerait que ce joueur soit déjà associé à un compte Discord")
             return
