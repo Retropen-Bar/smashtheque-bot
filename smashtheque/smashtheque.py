@@ -188,14 +188,85 @@ class Smashtheque(commands.Cog):
             else:
                 return None
 
-    async def raise_not_linked(self, ctx):
-        embed = discord.Embed(title="Votre compte Discord n'est associé à aucun joueur.\nUtilisez `!jesuis` pour associer votre compte à un joueur.")
+    async def find_player_by_id(self, player_id):
+        request_url = "{0}/{1}".format(self.api_url("players"), player_id)
+        async with self._session.get(request_url) as response:
+            player = await response.json()
+            return player
+
+    async def find_player_by_ids(self, player_ids):
+        players = []
+        for player_id in player_ids:
+            player = await self.find_player_by_id(player_id)
+            players.append(player)
+        return players
+
+    async def find_player_by_discord_id(self, discord_id):
+        request_url = "{0}?by_discord_id={1}".format(self.api_url("players"), discord_id)
+        async with self._session.get(request_url) as response:
+            players = await response.json()
+            if len(players) > 0:
+                return players[0]
+            return None
+
+    async def find_players_by_name_like(self, name):
+        request_url = "{0}?by_name_like={1}".format(self.api_url("players"), name)
+        async with self._session.get(request_url) as response:
+            players = await response.json()
+            return players
+
+    async def raise_message(self, ctx, message):
+        embed = discord.Embed(title=message)
         embed.set_author(
             name="smashthèque ",
             icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
         )
         await ctx.send(embed=embed)
-        return
+
+    async def raise_not_linked(self, ctx):
+        await self.raise_message(ctx, "Votre compte Discord n'est associé à aucun joueur.\nUtilisez `!jesuis` pour associer votre compte à un joueur.")
+
+    async def ask_confirmation(self, ctx, embed):
+        temp_message = await ctx.send(embed=embed)
+        pred = ReactionPredicate.yes_or_no(temp_message, ctx.author)
+        start_adding_reactions(
+            temp_message, ReactionPredicate.YES_OR_NO_EMOJIS
+        )
+        try:
+            await self.bot.wait_for("reaction_add", timeout=60.0, check=pred)
+        except asyncio.TimeoutError:
+            await ctx.send("Commande annulée")
+            return False
+        if pred.result is True:
+            await temp_message.delete()
+            return True
+        else:
+            await ctx.send("Commande annulée")
+            await temp_message.delete()
+            return False
+
+    async def ask_choice(self, ctx, embed, elements_count):
+        temp_message = await ctx.send(embed=embed)
+        emojis = ReactionPredicate.NUMBER_EMOJIS[1:elements_count + 1]
+        start_adding_reactions(temp_message, emojis)
+        pred = ReactionPredicate.with_emojis(emojis, temp_message)
+        try:
+            await ctx.bot.wait_for("reaction_add", timeout=60.0, check=pred)
+        except asyncio.TimeoutError:
+            await ctx.send("Commande annulée")
+            return None
+        if type(pred.result) == int:
+            await temp_message.delete()
+            return pred.result
+        return None
+
+    async def show_confirmation(self, ctx, message):
+        embed = discord.Embed(
+            title="I guess it's done!",
+            description=message,
+            colour=discord.Colour(0xA54C4C)
+        )
+        await ctx.send(embed=embed)
 
     def embed_players(self, embed, players, with_index=False):
         idx = 0
@@ -245,23 +316,9 @@ class Smashtheque(commands.Cog):
         )
         embed.set_footer(text="Réagissez avec ✅ pour confirmer et créer ce joueur, ou réagissez avec ❎ pour annuler.")
         self.embed_player(embed, player)
-        temp_message = await ctx.send(embed=embed)
-        pred = ReactionPredicate.yes_or_no(temp_message, ctx.author)
-        start_adding_reactions(temp_message, ReactionPredicate.YES_OR_NO_EMOJIS)
-        try:
-            await self.bot.wait_for(
-                "reaction_add", timeout=60.0, check=pred
-            )
-        except asyncio.TimeoutError:
-            await ctx.send("Commande annulée")
-        if pred.result is True:
-            await temp_message.delete()
+        doit = await self.ask_confirmation(ctx, embed)
+        if doit:
             await self.create_player(ctx, player)
-        else:
-            await ctx.send("Commande annulée")
-            await temp_message.delete()
-            return
-
 
     async def create_player(self, ctx, player):
         print(f"create player {player}")
@@ -270,11 +327,7 @@ class Smashtheque(commands.Cog):
             if r.status == 201:
                 # player creation wen fine
                 player_name = player["name"]
-                embed = discord.Embed(
-                    title=f"\"I guess it's done!\".\nLe joueur {player_name} a été ajouté à la Smashthèque et est en attente de validation.",
-                    colour=discord.Colour(0xA54C4C),
-                )
-                await ctx.send(embed=embed)
+                await self.show_confirmation(ctx, f"Le joueur {player_name} a été ajouté à la Smashthèque et est en attente de validation.")
                 return
 
             if r.status == 422:
@@ -282,48 +335,23 @@ class Smashtheque(commands.Cog):
                 erreur = Map(result)
                 print(f"errors: {erreur.errors}")
                 if "name" in erreur.errors and erreur.errors["name"] == "already_known":
-                    alts = []
-                    for i in erreur.errors["existing_ids"]:
-                        player_url = self.api_url("players")
-                        player_url += "/"
-                        player_url += str(i)
-                        async with self._session.get(player_url) as r:
-                            print(await r.json())
-                            result = await r.json()
-                            alts.append(result)
-                            print(alts)
+                    alts = await self.find_player_by_ids(erreur.errors["existing_ids"])
                     embed = discord.Embed(
                         title="Un ou plusieurs joueurs possèdent le même pseudo que le joueur que vous souhaitez ajouter.",
                         colour=discord.Colour(0xA54C4C),
                     )
                     embed.set_footer(text="Réagissez avec ✅ pour confirmer et créer un nouveau joueur, ou\nréagissez avec ❎ pour annuler.")
                     self.embed_players(embed, alts)
-                    temp_message = await ctx.send(embed=embed)
-                    pred = ReactionPredicate.yes_or_no(temp_message, ctx.author)
-                    start_adding_reactions(
-                        temp_message, ReactionPredicate.YES_OR_NO_EMOJIS
-                    )
-                    try:
-                        await self.bot.wait_for(
-                            "reaction_add", timeout=60.0, check=pred
-                        )
-                    except asyncio.TimeoutError:
-                        await ctx.send("Commande annulée")
-                    if pred.result is True:
-                        await temp_message.delete()
+                    doit = await self.ask_confirmation(ctx, embed)
+                    if doit:
                         player["name_confirmation"] = True
                         await self.create_player(ctx, player)
-                    else:
-                        await ctx.send("Commande annulée")
-                        await temp_message.delete()
-                        return
                 elif "discord_user" in erreur.errors and erreur.errors["discord_user"] == ["already_taken"]:
                     await yeet(ctx, "Ce compte Discord est déjà relié à un autre joueur dans la Smashthèque.")
                     return
                 else:
                     await generic_error(ctx, erreur)
                     return
-
 
     async def update_player(self, ctx, player_id, data):
         print(f"update player {player_id} with {data}")
@@ -351,11 +379,7 @@ class Smashtheque(commands.Cog):
         async with self._session.post(self.api_url("locations"), json=payload) as r:
             if r.status == 201:
                 # location creation went fine
-                embed = discord.Embed(
-                    title=f"\"I guess it's done!\".\nLa localisation {name} a été ajoutée à la base de données.",
-                    colour=discord.Colour(0xA54C4C),
-                )
-                await ctx.send(embed=embed)
+                await self.show_confirmation(ctx, f"La localisation {name} a été ajoutée à la base de données.")
                 return
 
             if r.status == 422:
@@ -519,7 +543,7 @@ class Smashtheque(commands.Cog):
         # make sure some characters were provided
         if len(response["character_ids"]) < 1:
             await yeet(
-                ctx, "Vous n'avez précisé aucun personnage joué ! C'est obligatoire"
+                ctx, "Vous n'avez précisé aucun personnage joué ! C'est obligatoire."
             )
             return
 
@@ -529,348 +553,151 @@ class Smashtheque(commands.Cog):
         await self.confirm_create_player(ctx, response)
 
     async def do_link(self, ctx, pseudo, discord_id):
-        discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), discord_id)
-        async with self._session.get(discord_url) as r:
-            users = await r.json()
-            if await r.json() != []:
-                users = Map(users[0])
-                embed = discord.Embed(title="Un joueur est déjà associé à ce compte Discord. Contactez un admin pour dissocier ce compte Discord de ce joueur.")
-                self.embed_player(embed, users)
-                await ctx.send(embed=embed)
-                return
-        player_url = "{0}?by_name_like={1}".format(self.api_url("players"), pseudo)
-        async with self._session.get(player_url) as r:
-            result = await r.json()
-        if len(result) == 0:
-            embed = discord.Embed(title="Ce pseudo n'existe pas.\nUtilisez la commande `!ajouterjoueur` pour l'ajouter.\n")
+        player = await self.find_player_by_discord_id(discord_id)
+        if player != None:
+            embed = discord.Embed(title="Un joueur est déjà associé à ce compte Discord. Contactez un admin pour dissocier ce compte Discord de ce joueur.")
+            self.embed_player(embed, player)
             await ctx.send(embed=embed)
             return
-        if len(result) == 1:
-            users = result[0]
+
+        players = await self.find_players_by_name_like(pseudo)
+
+        # no player found
+        if len(players) == 0:
+            await self.raise_message(ctx, "Ce pseudo n'existe pas.\nUtilisez la commande `!ajouterjoueur` pour l'ajouter.\n")
+            return
+
+        # one player found: ask confirmation
+        if len(players) == 1:
+            player = players[0]
             embed = discord.Embed(
                 title="Joueur trouvé :",
                 colour=discord.Colour(0xA54C4C),
             )
-            self.embed_player(embed, users)
-            temp_message = await ctx.send(embed=embed)
-            pred = ReactionPredicate.yes_or_no(temp_message, ctx.author)
-            start_adding_reactions(
-                temp_message, ReactionPredicate.YES_OR_NO_EMOJIS
-            )
-            try:
-                await self.bot.wait_for(
-                    "reaction_add", timeout=60.0, check=pred
-                )
-            except asyncio.TimeoutError:
-                await ctx.send("Commande annulée")
-            if pred.result is True:
-                await temp_message.delete()
-                player_url = "{0}/{1}".format(self.api_url("players"), users["id"])
-                response = {"player": {"discord_id": str(discord_id)}}
-                print(player_url)
-                print(response)
-                async with self._session.patch(player_url, json=response) as r:
-                    embed = discord.Embed(
-                        title=f"\"I guess it's done!\".\nLe compte Discord {discord_id} est maintenant associé au joueur {pseudo}.",
-                        colour=discord.Colour(0xA54C4C),
-                    )
-                    await ctx.send(embed=embed)
-                    return
-            else:
-                await ctx.send("Commande annulée")
-                await temp_message.delete()
+            self.embed_player(embed, player)
+            doit = await self.ask_confirmation(ctx, embed)
+            if not doit:
                 return
-        else:
-            embed = discord.Embed(
-                title="Plusieurs joueurs ont ce pseudo.\nChoisissez le bon joueur dans la liste ci-dessous grâce aux réactions",
-                colour=discord.Colour(0xA54C4C),
-            )
-            self.embed_players(embed, result, with_index=True)
-            temp_message = await ctx.send(embed=embed)
-            emojis = ReactionPredicate.NUMBER_EMOJIS[1:len(result) + 1]
-            start_adding_reactions(temp_message, emojis)
-            pred = ReactionPredicate.with_emojis(emojis, temp_message)
-            try:
-                await ctx.bot.wait_for("reaction_add", timeout=60.0, check=pred)
-            except asyncio.TimeoutError:
-                await ctx.send("Commande annulée")
-            if type(pred.result) == int:
-                await temp_message.delete()
-                player_url = "{0}/{1}".format(self.api_url("players"), result[pred.result]["id"])
-                async with self._session.get(player_url) as r:
-                    result = await r.json()
-                    if result["discord_id"] == None:
-                        response = {"player": {"discord_id": str(discord_id)}}
-                        await self._session.patch(player_url, json=response)
-                        embed = discord.Embed(
-                            title=f"\"I guess it's done!\".\nLe compte Discord {discord_id} est maintenant associé au joueur {pseudo}.",
-                            colour=discord.Colour(0xA54C4C),
-                        )
-                        await ctx.send(embed=embed)
-                    else:
-                        embed = discord.Embed(
-                            title=f"Il semblerait que ce joueur soit déjà associé à un compte Discord "
-                        )
-                        await ctx.send(embed=embed)
+            await self.update_player(ctx, player["id"], {"discord_id": str(discord_id)})
+            await self.show_confirmation(ctx, f"Le compte Discord {discord_id} est maintenant associé au joueur {pseudo}.")
+            return
+
+        # multiple players found: ask which one
+        embed = discord.Embed(
+            title="Plusieurs joueurs ont ce pseudo.\nChoisissez le bon joueur dans la liste ci-dessous grâce aux réactions",
+            colour=discord.Colour(0xA54C4C)
+        )
+        self.embed_players(embed, players, with_index=True)
+        choice = await self.ask_choice(ctx, embed, len(players))
+        player = players[choice]["id"]
+        if player["discord_id"] != None:
+            await self.raise_message(ctx, "Il semblerait que ce joueur soit déjà associé à un compte Discord")
+            return
+        await self.update_player(ctx, player["id"], {"discord_id": str(discord_id)})
+        await self.show_confirmation(ctx, f"Le compte Discord {discord_id} est maintenant associé au joueur {pseudo}.")
 
     async def do_unlink(self, ctx, target_member):
         discord_id = target_member.id
-        discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), discord_id)
-        async with self._session.get(discord_url) as r:
-            users = await r.json()
-            if await r.json() != []:
-                users = Map(users[0])
-                embed = discord.Embed(title="Un joueur est associé à ce compte discord. Voulez vous le dissocier ?")
-                embed.set_footer(text="Réagissez avec ✅ pour confirmer et dissocier ce compte du joueur, ou\nréagissez avec ❎ pour annuler.")
-                self.embed_player(embed, users)
-                temp_message = await ctx.send(embed=embed)
-                pred = ReactionPredicate.yes_or_no(temp_message, ctx.author)
-                start_adding_reactions(
-                    temp_message, ReactionPredicate.YES_OR_NO_EMOJIS
-                )
-                try:
-                    await self.bot.wait_for(
-                        "reaction_add", timeout=60.0, check=pred
-                    )
-                except asyncio.TimeoutError:
-                    await ctx.send("Commande annulée")
-                    return
-                if pred.result is True:
-                    await temp_message.delete()
-                    player_url = "{0}/{1}".format(self.api_url("players"), users.id)
-                    response = {"player": {"discord_id": None}}
-                    await self._session.patch(player_url, json=response)
-                    embed = discord.Embed(
-                    title=f"\"I guess it's done!\".\nLe compte Discord {discord_id} a été dissocié du joueur {users.name}.",
-                    colour=discord.Colour(0xA54C4C),
-                    )
-                    await ctx.send(embed=embed)
-                else:
-                    await ctx.send("Commande annulée")
-                    await temp_message.delete()
-                    return
-
-    async def do_massadd(self, ctx, arguments):
-        failed_lines = []
-        args_split = arguments.splitlines()
-        processed_players = []
-        for arg in args_split:
-            current_stage = 0
-            alts = []
-            # init de la réponse
-            response = {"name": "", "character_ids": [], "creator_discord_id": ""}
-            # process chaque arguments individuelement
-            x = arg.split()
-            loop = 1
-            for argu in x:
-                if current_stage == 0:
-                    if re.search(r"<a?:(\w+):(\d+)>", argu) != None:
-                        # regex les émojis discord
-                        if loop == 1:
-                            await uniqueyeet(
-                                ctx, "Veuillez commencer par donner le nom du joueur.", x
-                            )
-                            break
-                        else:
-                            current_stage = 1
-                            characters = await self.fetch_characters()
-                            # associer les ID des émojis input aux id de personnages
-                            emoji_dict = {}
-                            for sub in characters:
-                                if sub["emoji"] == re.search(r"[0-9]+", argu).group():
-                                    emoji_dict = sub
-                                    break
-                            if emoji_dict == {}:
-                                await uniqueyeet(
-                                    ctx,
-                                    "Veuillez utiliser les bon émojis de perso du serveur.", x
-                                )
-                                break
-                            response["character_ids"].append(emoji_dict["id"])
-                            continue
-                    else:
-                        # parse le nom qui peut contenir des espaces
-                        response["name"] = response["name"] + argu + " "
-                        loop += 1
-                        name_storing = response["name"]
-                        continue
-                elif current_stage == 1:
-                    # test si il reste des emojis a process dans les arguments
-                    if re.search(r"<a?:(\w+):(\d+)>", argu) == None:
-                        current_stage = 2
-                        continue
-                    # associer les ID des émojis input aux id de personnages si plus d'un perso est input
-                    else:
-                        for sub in result:
-                            if sub["emoji"] == re.search(r"[0-9]+", argu).group():
-                                emoji_dict = sub
-                                break
-                        if emoji_dict == {}:
-                            await uniqueyeet(
-                                ctx, "Veuillez utiliser les bon émojis de perso du serveur.", x
-                            )
-                            break
-                        response["character_ids"].append(emoji_dict["id"])
-                        continue
-                # parse la team si il y en a une
-                if current_stage == 2:
-                    # check si l'argu est une id discord
-                    if argu.isdigit() == True and len(str(argu)) == 18:
-                        response["discord_id"] = str(argu)
-                        break
-                    async with self._session.get(self.api_url("teams")) as r:
-                        result = await r.json()
-                        for i in result:
-                            if i["short_name"].lower() == argu.lower():
-                                response["team_id"] = i["id"]
-                                break
-                        if "team_id" not in response:
-                            # check si une localisation est trouvé si aucune team l'est
-                            async with self._session.get(self.api_url("locations")) as r:
-                                result = await r.json()
-                                for i in result:
-                                    if i["name"].lower() == argu.lower():
-                                        response["location_id"] = i["id"]
-                                        break
-                            if "location_id" not in response:
-                                await uniqueyeet(
-                                    ctx,
-                                    "Veuillez entrer un nom de team correct.\nPour ça, utilisez son tag.\nExample : `LoS` ou `RB`", x
-                                )
-                                break
-                            else:
-                                current_stage = 4
-                                continue
-                    current_stage = 3
-                    continue
-                elif current_stage == 3:
-                    # pareil, id discord
-                    if argu.isdigit() == True and len(str(argu)) == 18:
-                        response["discord_id"] = str(argu)
-                        break
-                    async with self._session.get(self.api_url("locations")) as r:
-                        result = await r.json()
-                        for i in result:
-                            if i["name"].lower() == argu.lower():
-                                response["location_id"] = i["id"]
-                                break
-                        if "location_id" not in response:
-                            await uniqueyeet(
-                                ctx,
-                                "Veuillez entrer un nom de localisation correct.\nSi la localisation souhaitée n'existe pas encore, utilisez !ajouterville ou !ajouterpays pour la créer.", x
-                            )
-                            break
-                    current_stage = 4
-                    continue
-                elif current_stage == 4:
-                    if argu.isdigit() == True and len(str(argu)) == 18:
-                        response["discord_id"] = str(argu)
-                    else:
-                        await uniqueyeet(
-                            ctx,
-                            "veuillez entrer l'ID Discord du joueur à ajouter.\nPour avoir son ID, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites clic droit sur l'utilisateur > copier l'id.", x
-                        )
-                        break
-                loop += 1
-            processed_players.append(name_storing)
-            # verifier que plusieurs personnes n'aient pas le même pseudo (changé D:)
-            response["creator_discord_id"] = str(ctx.author.id)
-            response["name"] = response["name"].rstrip()
-            response = {"player": response}
-            async with self._session.post(self.api_url("players"), json=response) as r:
-                if r.status == 422:
-                    result = await r.json()
-                    erreur = Map(result)
-                    print(erreur.errors["name"])
-                    if erreur.errors["name"] == "already_known":
-                        for i in erreur.errors["existing_ids"]:
-                            player_url = self.api_url("players")
-                            player_url += "/"
-                            player_url += str(i)
-                            async with self._session.get(player_url) as r:
-                                print(await r.json())
-                                result = await r.json()
-                                alts.append(result)
-                                print(alts)
-                        embed = discord.Embed(
-                            title="une ou plusieurs personnes possèdent le même pseudo que la personne que vous souhaitez ajouter. ",
-                            colour=discord.Colour(0xA54C4C),
-                        )
-                        self.embed_players(embed, alts)
-                        temp_message = await ctx.send(embed=embed)
-                        pred = ReactionPredicate.yes_or_no(temp_message, ctx.author)
-                        start_adding_reactions(
-                            temp_message, ReactionPredicate.YES_OR_NO_EMOJIS
-                        )
-                        try:
-                            await self.bot.wait_for(
-                                "reaction_add", timeout=60.0, check=pred
-                            )
-                            break
-                        except asyncio.TimeoutError:
-                            await ctx.send("Commande annulée")
-                        if pred.result is True:
-                            await temp_message.delete()
-                            response["player"]["name_confirmation"] = True
-                            print(response)
-                            async with self._session.post(self.api_url("players"), json=response) as r:
-                                print(r)
-                        else:
-                            await ctx.send("Commande annulée")
-                            await temp_message.delete()
-                            break
-                    else:
-                        await generic_error(ctx, erreur)
-                        break
+        player = await self.find_player_by_discord_id(discord_id)
+        if player == None:
+            await self.raise_not_linked(ctx)
+            return
+        embed = discord.Embed(title="Un joueur est associé à ce compte discord. Voulez vous le dissocier ?")
+        embed.set_footer(text="Réagissez avec ✅ pour confirmer et dissocier ce compte du joueur, ou\nréagissez avec ❎ pour annuler.")
+        self.embed_player(embed, player)
+        doit = await self.ask_confirmation(ctx, embed)
+        if not doit:
+            return
+        await self.update_player(ctx, player["id"], {"discord_id": None})
+        await self.show_confirmation(ctx, f"Le compte Discord {discord_id} a été dissocié du joueur {player["name"]}.")
 
     async def do_editname(self, ctx, discord_id, new_name):
-        discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), discord_id)
-        async with self._session.get(discord_url) as r:
-            users = await r.json()
-            if await r.json() != []:
-                users = users[0]
-                await self.update_player(ctx, users["id"], {"name": new_name})
-            else:
-                await self.raise_not_linked(ctx)
-                return
+        player = await self.find_player_by_discord_id(discord_id)
+        if player == None:
+            await self.raise_not_linked(ctx)
+            return
+        await self.update_player(ctx, player["id"], {"name": new_name})
 
-    async def do_addcharacter(self, ctx, discord_id, new_characters):
-        discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), discord_id)
-        async with self._session.get(discord_url) as r:
-            users = await r.json()
-            if await r.json() != []:
-                users = users[0]
-                character_id_list = users["character_ids"]
-                for emoji_raw in new_characters.split():
-                    char = await self.find_character_by_emoji_tag(ctx, emoji_raw)
-                    if char == None:
-                        return
-                    char_id = char["id"]
-                    print(f"################### {char_id}")
-                    character_id_list.append(char_id)
-                await self.update_player(ctx, users["id"], {"character_ids": character_id_list})
-            else:
-                await self.raise_not_linked(ctx)
-                return
+    async def do_removelocation(self, ctx, discord_id):
+        player = await self.find_player_by_discord_id(discord_id)
+        if player == None:
+            await self.raise_not_linked(ctx)
+            return
+        await self.update_player(ctx, player["id"], {"location_id": None})
 
-    async def do_removecharacter(self, ctx, discord_id, new_characters):
-        discord_url = "{0}?by_discord_id={1}".format(self.api_url("players"), discord_id)
-        async with self._session.get(discord_url) as r:
-            users = await r.json()
-            if await r.json() != []:
-                users = users[0]
-                character_id_list = users["character_ids"]
-                for emoji_raw in new_characters.split():
-                    char = await self.find_character_by_emoji_tag(ctx, emoji_raw)
-                    if char == None:
-                        return
-                    char_id = char["id"]
-                    if char_id in character_id_list:
-                        character_id_list.remove(char_id)
-                await self.update_player(ctx, users["id"], {"character_ids": character_id_list})
-            else:
-                await self.raise_not_linked(ctx)
+    async def do_editlocation(self, ctx, discord_id, location_name):
+        player = await self.find_player_by_discord_id(discord_id)
+        if player == None:
+            await self.raise_not_linked(ctx)
+            return
+        location = await self.find_location_by_name(location_name)
+        if location == None:
+            await self.raise_message(
+                ctx,
+                f"Nous n'avons pas réussi à trouver {location_name}.\nS'il s'agit d'une ville, vous pouvez l'ajouter à la Smashthèque avec !ajouterville.\nS'il s'agit d'un pays, vous pouvez l'ajouter à la Smashthèque avec !ajouterpays"
+            )
+        await self.update_player(ctx, player["id"], {"location_id": location["id"]})
+
+    async def do_removeteam(self, ctx, discord_id):
+        player = await self.find_player_by_discord_id(discord_id)
+        if player == None:
+            await self.raise_not_linked(ctx)
+            return
+        await self.update_player(ctx, player["id"], {"team_id": None})
+
+    async def do_editteam(self, ctx, discord_id, team_short_name):
+        player = await self.find_player_by_discord_id(discord_id)
+        if player == None:
+            await self.raise_not_linked(ctx)
+            return
+        team = await self.find_team_by_short_name(team_short_name)
+        if team == None:
+            await self.raise_message(
+                ctx,
+                f"Nous n'avons pas réussi à trouver l'équipe {team_short_name}.\nVous pouvez demander à un administrateur de la créer."
+            )
+        await self.update_player(ctx, player["id"], {"team_id": team["id"]})
+
+    async def do_addcharacters(self, ctx, discord_id, emojis):
+        player = await self.find_player_by_discord_id(discord_id)
+        if player == None:
+            await self.raise_not_linked(ctx)
+            return
+        character_ids = player["character_ids"]
+        for emoji_tag in emojis.split():
+            char = await self.find_character_by_emoji_tag(ctx, emoji_tag)
+            if char == None:
                 return
+            character_ids.append(char["id"])
+        await self.update_player(ctx, player["id"], {"character_ids": character_ids})
+
+    async def do_removecharacters(self, ctx, discord_id, emojis):
+        player = await self.find_player_by_discord_id(discord_id)
+        if player == None:
+            await self.raise_not_linked(ctx)
+            return
+        character_ids = player["character_ids"]
+        for emoji_tag in emojis.split():
+            char = await self.find_character_by_emoji_tag(ctx, emoji_tag)
+            if char == None:
+                return
+            char_id = char["id"]
+            if char_id in character_ids:
+                character_ids.remove(char_id)
+        await self.update_player(ctx, player["id"], {"character_ids": character_ids})
+
+    async def do_replacecharacters(self, ctx, discord_id, emojis):
+        player = await self.find_player_by_discord_id(discord_id)
+        if player == None:
+            await self.raise_not_linked(ctx)
+            return
+        character_ids = []
+        for emoji_tag in emojis.split():
+            char = await self.find_character_by_emoji_tag(ctx, emoji_tag)
+            if char == None:
+                return
+            character_ids.append(char["id"])
+        await self.update_player(ctx, player["id"], {"character_ids": character_ids})
 
     # -------------------------------------------------------------------------
     # COMMANDS
@@ -900,7 +727,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<pseudo> <emotes de persos> [team] [localisation] [ID Discord]")
+    @commands.command(usage="<pseudo> <emojis de persos> [team] [localisation] [ID Discord]")
     async def ajouterjoueur(self, ctx, *, arg):
         """cette commande va vous permettre d'ajouter un joueur dans la Smashthèque.
         \n\nVous devez ajouter au minimum le pseudo et les personnages joués (dans l'ordre).
@@ -967,48 +794,66 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command()
-    @commands.is_owner()
-    async def massadd(self, ctx, *, arguments):
-        """cette commande va vous permettre d'ajouter **plusieurs** joueurs dans la base de données de smashthèque.
-        \n\nAjoutez chaque joueurs normalement avec un retour à la ligne entre chacuns (maj + entré)
-        \n\nVous devez ajouter au minimum le pseudo et les persos joués dans l'ordre.
-        \n\nVous pouvez aussi ajouter sa team, sa localisation, et si il possède un compte discord, son id pour qu'il puisse modifier lui-même son compte.
-        \n\nVous pouvez récupérer l'id avec les options de developpeur (activez-les dans l'onglet Apparence des paramètres de l'utilisateur, puis faites un clic droit sur l'utilisateur et sélectionnez \"Copier ID\".)
-        \n\n\nExamples :
-        \n- !massadd Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>
-        \nred <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
-
+    @commands.command(usage="<nouveau pseudo>")
+    async def changerpseudo(self, ctx, *, name):
         try:
-            await self.do_massadd(ctx, arguments)
+            await self.do_editname(ctx, ctx.author.id, name)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command(usage="<emojis de persos>")
+    async def ajouterpersos(self, ctx, *, emojis):
+        try:
+            await self.do_addcharacters(ctx, ctx.author.id, emojis)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command(usage="<emojis de persos>")
+    async def enleverpersos(self, ctx, *, emojis):
+        try:
+            await self.do_removecharacters(ctx, ctx.author.id, emojis)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command(usage="<emojis de persos>")
+    async def remplacerpersos(self, ctx, *, emojis):
+        try:
+            await self.do_replacecharacters(ctx, ctx.author.id, emojis)
         except:
             rollbar.report_exc_info()
             raise
 
     @commands.command()
-    @commands.is_owner()
-    async def changernom(self, ctx, *, nouveau_nom):
+    async def enleverequipe(self, ctx):
         try:
-            await self.do_editname(ctx, ctx.author.id, nouveau_nom)
+            await self.do_removeteam(ctx, ctx.author.id)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command(usage="<team>")
+    async def changerequipe(self, ctx, *, team_short_name):
+        try:
+            await self.do_editteam(ctx, ctx.author.id, team_short_name)
         except:
             rollbar.report_exc_info()
             raise
 
     @commands.command()
-    @commands.is_owner()
-    async def ajouterperso(self, ctx, *, persos):
+    async def enleverlocalisation(self, ctx):
         try:
-            await self.do_addcharacter(ctx, ctx.author.id, persos)
+            await self.do_removelocation(ctx, ctx.author.id)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.command()
-    @commands.is_owner()
-    async def enleverperso(self, ctx, *, persos):
+    @commands.command(usage="<team>")
+    async def changerlocalisation(self, ctx, *, location_name):
         try:
-            await self.do_removecharacter(ctx, ctx.author.id, persos)
+            await self.do_editlocation(ctx, ctx.author.id, location_name)
         except:
             rollbar.report_exc_info()
             raise
-
