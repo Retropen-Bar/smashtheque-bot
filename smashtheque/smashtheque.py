@@ -488,6 +488,14 @@ class Smashtheque(commands.Cog):
                     )
                     return
 
+
+        # make sure some characters were provided
+        if len(response["character_ids"]) < 1:
+            await yeet(
+                ctx, "Vous n'avez précisé aucun personnage joué ! C'est obligatoire"
+            )
+            return
+
         # now the player is filled with attributes
         response["creator_discord_id"] = str(ctx.author.id)
         response["name"] = response["name"].rstrip()
