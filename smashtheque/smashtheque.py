@@ -656,6 +656,30 @@ class Smashtheque(commands.Cog):
         self.embed_player(embed, player)
         await ctx.send(embed=embed)
 
+    async def do_findplayer(self, ctx, name):
+        players = await self.find_players_by_name_like(name)
+
+        # no player found
+        if len(players) == 0:
+            await self.raise_message(ctx, "Aucun joueur connu avec ce pseudo.\nVous pouvez utiliser la commande `!ajouterjoueur` pour ajouter un joueur.\n")
+            return
+
+        if len(players) == 1:
+            player = players[0]
+            embed = discord.Embed(
+                title="Joueur trouvé :",
+                colour=discord.Colour.green()
+            )
+            self.embed_player(embed, player)
+        else:
+            embed = discord.Embed(
+                title="Plusieurs joueurs ont ce pseudo :",
+                colour=discord.Colour.green()
+            )
+            self.embed_players(embed, players)
+        await ctx.send(embed=embed)
+        return
+
     async def do_editname(self, ctx, discord_id, new_name):
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
@@ -921,6 +945,14 @@ class Smashtheque(commands.Cog):
     async def changerlocalisation(self, ctx, *, location_name):
         try:
             await self.do_editlocation(ctx, ctx.author.id, location_name)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command(usage="<pseudo>")
+    async def chercherjoueur(self, ctx, *, name):
+        try:
+            await self.do_findplayer(ctx, name)
         except:
             rollbar.report_exc_info()
             raise
