@@ -403,7 +403,7 @@ class Smashtheque(commands.Cog):
                     await generic_error(ctx, erreur)
                     return
 
-    async def do_addlocation(self, ctx, name, country=False):
+    async def do_createlocation(self, ctx, name, country=False):
         print(f"create location {name}")
         payload = {"name": name}
         if country:
@@ -697,18 +697,12 @@ class Smashtheque(commands.Cog):
             return
         await self.update_player(ctx, player["id"], {"name": new_name})
 
-    async def do_removelocation(self, ctx, discord_id):
+    async def do_removelocation(self, ctx, discord_id, location_name):
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
             await self.raise_not_linked(ctx)
             return
-        await self.update_player(ctx, player["id"], {"location_ids": []})
-
-    async def do_editlocation(self, ctx, discord_id, location_name):
-        player = await self.find_player_by_discord_id(discord_id)
-        if player == None:
-            await self.raise_not_linked(ctx)
-            return
+        location_ids = player["location_ids"]
         location = await self.find_location_by_name(location_name)
         if location == None:
             await self.raise_message(
@@ -716,20 +710,40 @@ class Smashtheque(commands.Cog):
                 f"Nous n'avons pas réussi à trouver {location_name}.\nS'il s'agit d'une ville, vous pouvez l'ajouter à la Smashthèque avec !ajouterville.\nS'il s'agit d'un pays, vous pouvez l'ajouter à la Smashthèque avec !ajouterpays"
             )
             return
-        await self.update_player(ctx, player["id"], {"location_ids": [location["id"]]})
+        location_id = location["id"]
+        if location_id in location_ids:
+            location_ids.remove(location_id)
+        await self.update_player(ctx, player["id"], {"location_ids": location_ids})
 
-    async def do_removeteam(self, ctx, discord_id):
+    async def do_addlocation(self, ctx, discord_id, location_name):
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
             await self.raise_not_linked(ctx)
             return
-        await self.update_player(ctx, player["id"], {"team_ids": []})
+        location_ids = player["location_ids"]
+        location = await self.find_location_by_name(location_name)
+        if location == None:
+            await self.raise_message(
+                ctx,
+                f"Nous n'avons pas réussi à trouver {location_name}.\nS'il s'agit d'une ville, vous pouvez l'ajouter à la Smashthèque avec !ajouterville.\nS'il s'agit d'un pays, vous pouvez l'ajouter à la Smashthèque avec !ajouterpays"
+            )
+            return
+        location_id = location["id"]
+        if location_id in location_ids:
+            await self.raise_message(
+                ctx,
+                f"Ce joueur est déjà localisé à {location_name}."
+            )
+            return
+        location_ids.append(location_id)
+        await self.update_player(ctx, player["id"], {"location_ids": location_ids})
 
-    async def do_editteam(self, ctx, discord_id, team_short_name):
+    async def do_removeteam(self, ctx, discord_id, team_short_name):
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
             await self.raise_not_linked(ctx)
             return
+        team_ids = player["team_ids"]
         team = await self.find_team_by_short_name(team_short_name)
         if team == None:
             await self.raise_message(
@@ -737,7 +751,33 @@ class Smashtheque(commands.Cog):
                 f"Nous n'avons pas réussi à trouver l'équipe {team_short_name}.\nVous pouvez demander à un administrateur de la créer."
             )
             return
-        await self.update_player(ctx, player["id"], {"team_ids": [team["id"]]})
+        team_id = team["id"]
+        if team_id in team_ids:
+            team_ids.remove(team_id)
+        await self.update_player(ctx, player["id"], {"team_ids": team_ids})
+
+    async def do_addteam(self, ctx, discord_id, team_short_name):
+        player = await self.find_player_by_discord_id(discord_id)
+        if player == None:
+            await self.raise_not_linked(ctx)
+            return
+        team_ids = player["team_ids"]
+        team = await self.find_team_by_short_name(team_short_name)
+        if team == None:
+            await self.raise_message(
+                ctx,
+                f"Nous n'avons pas réussi à trouver l'équipe {team_short_name}.\nVous pouvez demander à un administrateur de la créer."
+            )
+            return
+        team_id = team["id"]
+        if team_id in team_ids:
+            await self.raise_message(
+                ctx,
+                f"Ce joueur est déjà membre de l'équipe {team_short_name}."
+            )
+            return
+        team_ids.append(team_id)
+        await self.update_player(ctx, player["id"], {"team_ids": team_ids})
 
     async def do_addcharacters(self, ctx, discord_id, emojis):
         player = await self.find_player_by_discord_id(discord_id)
@@ -794,7 +834,7 @@ class Smashtheque(commands.Cog):
         \n\n\nExemples : \n- !ajouterville Paris\n- !ajouterville Lyon\n"""
 
         try:
-            await self.do_addlocation(ctx, name)
+            await self.do_createlocation(ctx, name)
         except:
             rollbar.report_exc_info()
             raise
@@ -806,7 +846,7 @@ class Smashtheque(commands.Cog):
         \n\n\nExemples : \n- !ajouterpays Belgique\n"""
 
         try:
-            await self.do_addlocation(ctx, name, country=True)
+            await self.do_createlocation(ctx, name, country=True)
         except:
             rollbar.report_exc_info()
             raise
@@ -927,34 +967,34 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command()
-    async def enleverequipe(self, ctx):
+    @commands.command(usage="<team>")
+    async def quitter(self, ctx, *, team_short_name):
         try:
-            await self.do_removeteam(ctx, ctx.author.id)
+            await self.do_removeteam(ctx, ctx.author.id, team_short_name)
         except:
             rollbar.report_exc_info()
             raise
 
     @commands.command(usage="<team>")
-    async def changerequipe(self, ctx, *, team_short_name):
+    async def integrer(self, ctx, *, team_short_name):
         try:
-            await self.do_editteam(ctx, ctx.author.id, team_short_name)
-        except:
-            rollbar.report_exc_info()
-            raise
-
-    @commands.command()
-    async def enleverlocalisation(self, ctx):
-        try:
-            await self.do_removelocation(ctx, ctx.author.id)
+            await self.do_addteam(ctx, ctx.author.id, team_short_name)
         except:
             rollbar.report_exc_info()
             raise
 
     @commands.command(usage="<localisation>")
-    async def changerlocalisation(self, ctx, *, location_name):
+    async def enleverlocalisation(self, ctx, *, location_name):
         try:
-            await self.do_editlocation(ctx, ctx.author.id, location_name)
+            await self.do_removelocation(ctx, ctx.author.id, location_name)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command(usage="<localisation>")
+    async def ajouterlocalisation(self, ctx, *, location_name):
+        try:
+            await self.do_addlocation(ctx, ctx.author.id, location_name)
         except:
             rollbar.report_exc_info()
             raise
