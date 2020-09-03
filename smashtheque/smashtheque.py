@@ -637,6 +637,19 @@ class Smashtheque(commands.Cog):
         player_name = player["name"]
         await self.show_confirmation(ctx, f"Le compte Discord {discord_id} a été dissocié du joueur {player_name}.")
 
+    async def do_showplayer(self, ctx, target_member):
+        discord_id = target_member.id
+        player = await self.find_player_by_discord_id(discord_id)
+        if player == None:
+            await self.raise_not_linked(ctx)
+            return
+        embed = discord.Embed(
+            title="Ce compte Discord est associé au joueur suivant :",
+            colour=discord.Colour.green(),
+        )
+        self.embed_player(embed, player)
+        await ctx.send(embed=embed)
+
     async def do_editname(self, ctx, discord_id, new_name):
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
@@ -821,6 +834,23 @@ class Smashtheque(commands.Cog):
 
         try:
             await self.do_unlink(ctx, target_member)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command(usage="<ID Discord>")
+    @commands.admin_or_permissions(administrator=True)
+    async def quiest(self, ctx, *, target_member: discord.Member):
+        try:
+            await self.do_showplayer(ctx, target_member)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command()
+    async def quisuisje(self, ctx):
+        try:
+            await self.do_showplayer(ctx, ctx.author)
         except:
             rollbar.report_exc_info()
             raise
