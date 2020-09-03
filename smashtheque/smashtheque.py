@@ -844,7 +844,7 @@ class Smashtheque(commands.Cog):
             raise
 
     @commands.command()
-    @commands.is_owner()
+    @commands.admin_or_permissions(administrator=True)
     async def jenesuispas(self, ctx):
         """cette commande permet de dissocier votre compte Discord d'un joueur de la Smashthèque.
         \n\n\nExemples : \n- !jenesuispas\n"""
