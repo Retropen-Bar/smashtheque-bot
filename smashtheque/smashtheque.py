@@ -63,6 +63,8 @@ def format_emojis(id_list):
         end = end + f"<:placeholder:{i}>"
     return end
 
+def format_discord_user(discord_id):
+    return f"<@{discord_id}>"
 
 def is_discord_id(v):
     return v.isdigit() and len(str(v)) == 18
@@ -314,6 +316,10 @@ class Smashtheque(commands.Cog):
             location_name = self._locations_cache[str(player.location_id)]["name"]
         if location_name != None:
             embed.add_field(name="Localisation", value=location_name, inline=True)
+
+        if "discord_id" in _player and player.discord_id != None:
+            discord_user = format_discord_user(player.discord_id)
+            embed.add_field(name="Compte Discord", value=discord_user, inline=True)
 
     async def confirm_create_player(self, ctx, player):
         embed = discord.Embed(
