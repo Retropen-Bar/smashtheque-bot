@@ -941,7 +941,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<team>")
+    @commands.command(usage="<localisation>")
     async def changerlocalisation(self, ctx, *, location_name):
         try:
             await self.do_editlocation(ctx, ctx.author.id, location_name)
