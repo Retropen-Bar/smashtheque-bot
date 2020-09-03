@@ -53,18 +53,20 @@ def loop_dict(dict_to_use, value, parameter):
         if sub[value] == parameter:
             return sub
 
+def format_emoji(emoji_id):
+    return f"<:placeholder:{emoji_id}>"
 
-def format_emojis(id_list):
-    """transformer des émoji id en émojis discord"""
-    end = ""
-    print(id_list)
-    for i in id_list:
-        print(i)
-        end = end + f"<:placeholder:{i}>"
-    return end
+def format_character(character):
+    return format_emoji(character["emoji"])
 
 def format_discord_user(discord_id):
     return f"<@{discord_id}>"
+
+def format_team(team):
+    return "{0} ({1})".format(team["name"], team["short_name"])
+
+def format_location(location):
+    return location["name"].title()
 
 def is_discord_id(v):
     return v.isdigit() and len(str(v)) == 18
@@ -287,37 +289,36 @@ class Smashtheque(commands.Cog):
     def embed_player(self, embed, _player, with_index=False, index=0):
         player = Map(_player)
 
-        alts_emojis = []
+        personnages = []
         if "characters" in _player:
             for character in player.characters:
-                alts_emojis.append(character["emoji"])
+                personnages.append(format_character(character))
         elif "character_ids" in _player:
             for character_id in player.character_ids:
-                alts_emojis.append(self._characters_cache[str(character_id)]["emoji"])
-        personnages = format_emojis(alts_emojis)
+                personnages.append(format_character(self._characters_cache[str(character_id)]))
 
         player_name = player.name
         if with_index:
             player_name = ReactionPredicate.NUMBER_EMOJIS[index] + " " + player_name
-        embed.add_field(name=player_name, value=personnages, inline=True)
+        embed.add_field(name=player_name, value="".join(personnages), inline=True)
 
         team_names = []
         if "teams" in _player:
             for team in player.teams:
-                team_names.append(team["name"])
+                team_names.append(format_team(team))
         elif "team_ids" in _player:
             for team_id in player.team_ids:
-                team_names.append(self._teams_cache[str(team_id)]["name"])
+                team_names.append(format_team(self._teams_cache[str(team_id)]))
         if len(team_names) > 0:
             embed.add_field(name="Équipes", value="\n".join(team_names), inline=True)
 
         location_names = []
         if "locations" in _player:
             for location in player.locations:
-                location_names.append(location["name"])
+                location_names.append(format_location(location))
         elif "location_ids" in _player:
             for location_id in player.location_ids:
-                location_names.append(self._locations_cache[str(location_id)]["name"])
+                location_names.append(format_location(self._locations_cache[str(location_id)]))
         if len(location_names) > 0:
             embed.add_field(name="Localisations", value="\n".join(location_names), inline=True)
 
