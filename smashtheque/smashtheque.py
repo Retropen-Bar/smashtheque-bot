@@ -301,21 +301,25 @@ class Smashtheque(commands.Cog):
             player_name = ReactionPredicate.NUMBER_EMOJIS[index] + " " + player_name
         embed.add_field(name=player_name, value=personnages, inline=True)
 
-        team_name = None
-        if "team" in _player and player.team != None:
-            team_name = player.team["name"]
-        elif "team_id" in _player and player.team_id != None:
-            team_name = self._teams_cache[str(player.team_id)]["name"]
-        if team_name != None:
-            embed.add_field(name="Team", value=team_name, inline=True)
+        team_names = []
+        if "teams" in _player:
+            for team in player.teams:
+                team_names.append(team["name"])
+        elif "team_ids" in _player:
+            for team_id in player.team_ids:
+                team_names.append(self._teams_cache[str(team_id)]["name"])
+        if len(team_names) > 0:
+            embed.add_field(name="Équipes", value="\n".join(team_names), inline=True)
 
-        location_name = None
-        if "location" in _player and player.location != None:
-            location_name = player.location["name"]
-        elif "location_id" in _player and player.location_id != None:
-            location_name = self._locations_cache[str(player.location_id)]["name"]
-        if location_name != None:
-            embed.add_field(name="Localisation", value=location_name, inline=True)
+        location_names = []
+        if "locations" in _player:
+            for location in player.locations:
+                location_names.append(location["name"])
+        elif "location_ids" in _player:
+            for location_id in player.location_ids:
+                location_names.append(self._locations_cache[str(location_id)]["name"])
+        if len(location_names) > 0:
+            embed.add_field(name="Localisations", value="\n".join(location_names), inline=True)
 
         if "discord_id" in _player and player.discord_id != None:
             discord_user = format_discord_user(player.discord_id)
@@ -437,7 +441,13 @@ class Smashtheque(commands.Cog):
         current_stage = 0
 
         # init de la réponse
-        response = {"name": "", "character_ids": [], "creator_discord_id": ""}
+        response = {
+            "name": "",
+            "character_ids": [],
+            "creator_discord_id": "",
+            "location_ids": [],
+            "team_ids": []
+        }
 
         # process each argument between spaces
         # [name piece] [name piece] [emoji] [emoji] [team] [location] [discord ID]
@@ -502,7 +512,7 @@ class Smashtheque(commands.Cog):
 
                 team = await self.find_team_by_short_name(argu)
                 if team != None:
-                    response["team_id"] = team["id"]
+                    response["team_ids"].append(team["id"])
                     current_stage = 3
                     continue
 
@@ -522,7 +532,7 @@ class Smashtheque(commands.Cog):
 
                 location = await self.find_location_by_name(argu)
                 if location != None:
-                    response["location_id"] = location["id"]
+                    response["location_ids"].append(location["id"])
                     current_stage = 4
                     continue
 
@@ -545,14 +555,14 @@ class Smashtheque(commands.Cog):
                     break
 
                 # so we were unable to parse argu
-                if "location_id" in response and response["location_id"] != None:
+                if len(response["location_ids"]) > 0:
                     # we have a location, so we are pretty sure argu was supposed to be a Discord ID
                     await yeet(
                         ctx,
                         f"Veuillez entrer un ID Discord correct pour le joueur à ajouter : {argu} n'en est pas un.\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
                     )
                     return
-                elif "team_id" in response and response["team_id"] != None:
+                elif len(response["team_ids"]) > 0:
                     # we have a team, so argu could be for a location or a Discord ID
                     await yeet(
                         ctx,
@@ -692,7 +702,7 @@ class Smashtheque(commands.Cog):
         if player == None:
             await self.raise_not_linked(ctx)
             return
-        await self.update_player(ctx, player["id"], {"location_id": None})
+        await self.update_player(ctx, player["id"], {"location_ids": []})
 
     async def do_editlocation(self, ctx, discord_id, location_name):
         player = await self.find_player_by_discord_id(discord_id)
@@ -706,14 +716,14 @@ class Smashtheque(commands.Cog):
                 f"Nous n'avons pas réussi à trouver {location_name}.\nS'il s'agit d'une ville, vous pouvez l'ajouter à la Smashthèque avec !ajouterville.\nS'il s'agit d'un pays, vous pouvez l'ajouter à la Smashthèque avec !ajouterpays"
             )
             return
-        await self.update_player(ctx, player["id"], {"location_id": location["id"]})
+        await self.update_player(ctx, player["id"], {"location_ids": [location["id"]]})
 
     async def do_removeteam(self, ctx, discord_id):
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
             await self.raise_not_linked(ctx)
             return
-        await self.update_player(ctx, player["id"], {"team_id": None})
+        await self.update_player(ctx, player["id"], {"team_ids": []})
 
     async def do_editteam(self, ctx, discord_id, team_short_name):
         player = await self.find_player_by_discord_id(discord_id)
@@ -727,7 +737,7 @@ class Smashtheque(commands.Cog):
                 f"Nous n'avons pas réussi à trouver l'équipe {team_short_name}.\nVous pouvez demander à un administrateur de la créer."
             )
             return
-        await self.update_player(ctx, player["id"], {"team_id": team["id"]})
+        await self.update_player(ctx, player["id"], {"team_ids": [team["id"]]})
 
     async def do_addcharacters(self, ctx, discord_id, emojis):
         player = await self.find_player_by_discord_id(discord_id)
