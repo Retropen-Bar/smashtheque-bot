@@ -567,14 +567,14 @@ class Smashtheque(commands.Cog):
                     # we have a team, so argu could be for a location or a Discord ID
                     await yeet(
                         ctx,
-                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec !ajouterville ou !ajouterpays.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
+                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec !creerville ou !creerpays.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
                     )
                     return
                 else:
                     # we have no team and no location: argu could be for a team, a location or a Discord ID
                     await yeet(
                         ctx,
-                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une équipe, vous devez demander à un administrateur de la créer.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec !ajouterville ou !ajouterpays.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
+                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une équipe, vous devez demander à un administrateur de la créer.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec !creerville ou !creerpays.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
                     )
                     return
 
@@ -603,7 +603,7 @@ class Smashtheque(commands.Cog):
 
         # no player found
         if len(players) == 0:
-            await self.raise_message(ctx, "Ce pseudo n'existe pas.\nUtilisez la commande `!ajouterjoueur` pour l'ajouter.\n")
+            await self.raise_message(ctx, "Ce pseudo n'existe pas.\nUtilisez la commande `!creerjoueur` pour l'ajouter.\n")
             return
 
         # one player found: ask confirmation
@@ -672,7 +672,7 @@ class Smashtheque(commands.Cog):
 
         # no player found
         if len(players) == 0:
-            await self.raise_message(ctx, "Aucun joueur connu avec ce pseudo.\nVous pouvez utiliser la commande `!ajouterjoueur` pour ajouter un joueur.\n")
+            await self.raise_message(ctx, "Aucun joueur connu avec ce pseudo.\nVous pouvez utiliser la commande `!creerjoueur` pour ajouter un joueur.\n")
             return
 
         if len(players) == 1:
@@ -708,7 +708,7 @@ class Smashtheque(commands.Cog):
         if location == None:
             await self.raise_message(
                 ctx,
-                f"Nous n'avons pas réussi à trouver {location_name}.\nS'il s'agit d'une ville, vous pouvez l'ajouter à la Smashthèque avec !ajouterville.\nS'il s'agit d'un pays, vous pouvez l'ajouter à la Smashthèque avec !ajouterpays"
+                f"Nous n'avons pas réussi à trouver {location_name}.\nS'il s'agit d'une ville, vous pouvez l'ajouter à la Smashthèque avec !creerville.\nS'il s'agit d'un pays, vous pouvez l'ajouter à la Smashthèque avec !creerpays"
             )
             return
         location_id = location["id"]
@@ -726,7 +726,7 @@ class Smashtheque(commands.Cog):
         if location == None:
             await self.raise_message(
                 ctx,
-                f"Nous n'avons pas réussi à trouver {location_name}.\nS'il s'agit d'une ville, vous pouvez l'ajouter à la Smashthèque avec !ajouterville.\nS'il s'agit d'un pays, vous pouvez l'ajouter à la Smashthèque avec !ajouterpays"
+                f"Nous n'avons pas réussi à trouver {location_name}.\nS'il s'agit d'une ville, vous pouvez l'ajouter à la Smashthèque avec !creerville.\nS'il s'agit d'un pays, vous pouvez l'ajouter à la Smashthèque avec !creerpays"
             )
             return
         location_id = location["id"]
@@ -829,10 +829,10 @@ class Smashtheque(commands.Cog):
     # -------------------------------------------------------------------------
 
     @commands.command(usage="<nom>")
-    async def ajouterville(self, ctx, *, name):
+    async def creerville(self, ctx, *, name):
         """cette commande va vous permettre d'ajouter une ville dans la Smashthèque.
         \n\nVous devez préciser son nom.
-        \n\n\nExemples : \n- !ajouterville Paris\n- !ajouterville Lyon\n"""
+        \n\n\nExemples : \n- !creerville Paris\n- !creerville Lyon\n"""
 
         try:
             await self.do_createlocation(ctx, name)
@@ -841,10 +841,10 @@ class Smashtheque(commands.Cog):
             raise
 
     @commands.command(usage="<nom>")
-    async def ajouterpays(self, ctx, *, name):
+    async def creerpays(self, ctx, *, name):
         """cette commande va vous permettre d'ajouter un pays dans la Smashthèque.
         \n\nVous devez préciser son nom.
-        \n\n\nExemples : \n- !ajouterpays Belgique\n"""
+        \n\n\nExemples : \n- !creerpays Belgique\n"""
 
         try:
             await self.do_createlocation(ctx, name, country=True)
@@ -853,12 +853,12 @@ class Smashtheque(commands.Cog):
             raise
 
     @commands.command(usage="<pseudo> <emojis de persos> [team] [localisation] [ID Discord]")
-    async def ajouterjoueur(self, ctx, *, arg):
+    async def creerjoueur(self, ctx, *, arg):
         """cette commande va vous permettre d'ajouter un joueur dans la Smashthèque.
         \n\nVous devez ajouter au minimum le pseudo et les personnages joués (dans l'ordre).
         \n\nVous pouvez aussi ajouter sa team, sa localisation et, s'il possède un compte Discord, son ID pour qu'il puisse modifier lui-même son compte.
         \n\nVous pouvez récupérer l'ID avec les options de developpeur (activez-les dans l'onglet Apparence des paramètres de l'utilisateur, puis faites un clic droit sur l'utilisateur et sélectionnez \"Copier ID\".)
-        \n\n\nExemples : \n- !ajouterjoueur Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>\n- !ajouterjoueur red <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
+        \n\n\nExemples : \n- !creerjoueur Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>\n- !creerjoueur red <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
 
         try:
             await self.do_addplayer(ctx, arg)
