@@ -621,7 +621,8 @@ class Smashtheque(commands.Cog):
                 await self.raise_message(ctx, "Il semblerait que ce joueur soit déjà associé à un compte Discord")
                 return
             await self.update_player(ctx, player["id"], {"discord_id": str(discord_id)})
-            await self.show_confirmation(ctx, f"Le compte Discord {discord_id} est maintenant associé au joueur {pseudo}.")
+            discord_user = format_discord_user(discord_id)
+            await self.show_confirmation(ctx, f"Le compte Discord {discord_user} est maintenant associé au joueur {pseudo}.")
             return
 
         # multiple players found: ask which one
@@ -636,7 +637,8 @@ class Smashtheque(commands.Cog):
             await self.raise_message(ctx, "Il semblerait que ce joueur soit déjà associé à un compte Discord")
             return
         await self.update_player(ctx, player["id"], {"discord_id": str(discord_id)})
-        await self.show_confirmation(ctx, f"Le compte Discord {discord_id} est maintenant associé au joueur {pseudo}.")
+        discord_user = format_discord_user(discord_id)
+        await self.show_confirmation(ctx, f"Le compte Discord {discord_user} est maintenant associé au joueur {pseudo}.")
 
     async def do_unlink(self, ctx, target_member):
         discord_id = target_member.id
@@ -652,7 +654,8 @@ class Smashtheque(commands.Cog):
             return
         await self.update_player(ctx, player["id"], {"discord_id": None})
         player_name = player["name"]
-        await self.show_confirmation(ctx, f"Le compte Discord {discord_id} a été dissocié du joueur {player_name}.")
+        discord_user = format_discord_user(discord_id)
+        await self.show_confirmation(ctx, f"Le compte Discord {discord_user} a été dissocié du joueur {player_name}.")
 
     async def do_showplayer(self, ctx, target_member):
         discord_id = target_member.id
