@@ -790,10 +790,17 @@ class Smashtheque(commands.Cog):
             return
         character_ids = player["character_ids"]
         for emoji_tag in emojis.split():
-            char = await self.find_character_by_emoji_tag(ctx, emoji_tag)
-            if char == None:
+            character = await self.find_character_by_emoji_tag(ctx, emoji_tag)
+            if character == None:
                 return
-            character_ids.append(char["id"])
+            character_id = character["id"]
+            if character_id in character_ids:
+                await self.raise_message(
+                    ctx,
+                    f"Le personnage {emoji_tag} est déjà indiqué sur ce joueur."
+                )
+                return
+            character_ids.append(character_id)
         await self.update_player(ctx, player["id"], {"character_ids": character_ids})
 
     async def do_removecharacters(self, ctx, discord_id, emojis):
