@@ -69,7 +69,7 @@ def format_location(location):
     return location["name"].title()
 
 def is_discord_id(v):
-    return v.isdigit() and len(str(v)) == 18
+    return v.isdigit() and (len(str(v)) == 17 or len(str(v)) == 18)
 
 def is_emoji(v):
     return re.search(r"<a?:(\w+):(\d+)>", v) != None
