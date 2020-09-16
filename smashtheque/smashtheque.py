@@ -296,6 +296,8 @@ class Smashtheque(commands.Cog):
         elif "character_ids" in _player:
             for character_id in player.character_ids:
                 personnages.append(format_character(self._characters_cache[str(character_id)]))
+        if len(personnages) < 1:
+            personnages.append("\u200b")
 
         player_name = player.name
         if with_index:
