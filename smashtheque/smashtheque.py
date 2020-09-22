@@ -33,7 +33,7 @@ async def yeet(ctx, erreur):
         colour=discord.Colour.red()
     )
     embed.set_author(
-        name="smashthèque ",
+        name="Smashthèque",
         icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
     )
     await ctx.send(embed=embed)
@@ -48,7 +48,7 @@ async def uniqueyeet(ctx, erreur, playername):
         colour=discord.Colour.red()
     )
     embed.set_author(
-        name="smashthèque ",
+        name="Smashthèque",
         icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
     )
     await ctx.send(embed=embed)
@@ -268,13 +268,13 @@ class Smashtheque(commands.Cog):
     async def raise_message(self, ctx, message):
         embed = discord.Embed(title=message)
         embed.set_author(
-            name="smashthèque ",
+            name="Smashthèque",
             icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
         )
         await ctx.send(embed=embed)
 
     async def raise_not_linked(self, ctx):
-        await self.raise_message(ctx, "Votre compte Discord n'est associé à aucun joueur.\nUtilisez `!jesuis` pour associer votre compte à un joueur.")
+        await self.raise_message(ctx, f"Votre compte Discord n'est associé à aucun joueur.\nUtilisez `{ctx.clean_prefix}jesuis` pour associer votre compte à un joueur.")
 
     async def ask_confirmation(self, ctx, embed):
         temp_message = await ctx.send(embed=embed)
@@ -609,14 +609,14 @@ class Smashtheque(commands.Cog):
                     # we have a team, so argu could be for a location or a Discord ID
                     await yeet(
                         ctx,
-                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec !creerville ou !creerpays.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
+                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec `{ctx.clean_prefix}creerville` ou `{ctx.clean_prefix}creerpays`.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
                     )
                     return
                 else:
                     # we have no team and no location: argu could be for a team, a location or a Discord ID
                     await yeet(
                         ctx,
-                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une équipe, vous devez demander à un administrateur de la créer.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec !creerville ou !creerpays.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
+                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une équipe, vous devez demander à un administrateur de la créer.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec `{ctx.clean_prefix}creerville` ou `{ctx.clean_prefix}creerpays`.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
                     )
                     return
 
@@ -645,7 +645,7 @@ class Smashtheque(commands.Cog):
 
         # no player found
         if len(players) == 0:
-            await self.raise_message(ctx, "Ce pseudo n'existe pas.\nUtilisez la commande `!creerjoueur` pour l'ajouter.\n")
+            await self.raise_message(ctx, f"Ce pseudo n'existe pas.\nUtilisez la commande `{ctx.clean_prefix}creerjoueur` pour l'ajouter.\n")
             return
 
         # one player found: ask confirmation
@@ -717,7 +717,7 @@ class Smashtheque(commands.Cog):
 
         # no player found
         if len(players) == 0:
-            await self.raise_message(ctx, "Aucun joueur connu avec ce pseudo.\nVous pouvez utiliser la commande `!creerjoueur` pour ajouter un joueur.\n")
+            await self.raise_message(ctx, f"Aucun joueur connu avec ce pseudo.\nVous pouvez utiliser la commande `{ctx.clean_prefix}creerjoueur` pour ajouter un joueur.\n")
             return
 
         if len(players) == 1:
@@ -753,7 +753,7 @@ class Smashtheque(commands.Cog):
         if location == None:
             await self.raise_message(
                 ctx,
-                f"Nous n'avons pas réussi à trouver {location_name}.\nS'il s'agit d'une ville, vous pouvez l'ajouter à la Smashthèque avec !creerville.\nS'il s'agit d'un pays, vous pouvez l'ajouter à la Smashthèque avec !creerpays"
+                f"Nous n'avons pas réussi à trouver {location_name}.\nS'il s'agit d'une ville, vous pouvez l'ajouter à la Smashthèque avec `{ctx.clean_prefix}creerville`.\nS'il s'agit d'un pays, vous pouvez l'ajouter à la Smashthèque avec `{ctx.clean_prefix}creerpays`"
             )
             return
         location_id = location["id"]
@@ -771,7 +771,7 @@ class Smashtheque(commands.Cog):
         if location == None:
             await self.raise_message(
                 ctx,
-                f"Nous n'avons pas réussi à trouver {location_name}.\nS'il s'agit d'une ville, vous pouvez l'ajouter à la Smashthèque avec !creerville.\nS'il s'agit d'un pays, vous pouvez l'ajouter à la Smashthèque avec !creerpays"
+                f"Nous n'avons pas réussi à trouver {location_name}.\nS'il s'agit d'une ville, vous pouvez l'ajouter à la Smashthèque avec `{ctx.clean_prefix}creerville`.\nS'il s'agit d'un pays, vous pouvez l'ajouter à la Smashthèque avec `{ctx.clean_prefix}creerpays`."
             )
             return
         location_id = location["id"]
@@ -850,7 +850,7 @@ class Smashtheque(commands.Cog):
                 colour=discord.Colour.blue()
             )
             embed.set_author(
-                name="smashthèque ",
+                name="Smashthèque",
                 icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
             )
             await ctx.send(embed=embed)
@@ -927,7 +927,7 @@ class Smashtheque(commands.Cog):
     async def creerville(self, ctx, *, name):
         """cette commande va vous permettre d'ajouter une ville dans la Smashthèque.
         \n\nVous devez préciser son nom.
-        \n\n\nExemples : \n- !creerville Paris\n- !creerville Lyon\n"""
+        \n\n\nExemples : \n- creerville Paris\n- creerville Lyon\n"""
 
         try:
             await self.do_createlocation(ctx, name)
@@ -939,7 +939,7 @@ class Smashtheque(commands.Cog):
     async def creerpays(self, ctx, *, name):
         """cette commande va vous permettre d'ajouter un pays dans la Smashthèque.
         \n\nVous devez préciser son nom.
-        \n\n\nExemples : \n- !creerpays Belgique\n"""
+        \n\n\nExemples : \n- creerpays Belgique\n"""
 
         try:
             await self.do_createlocation(ctx, name, country=True)
@@ -953,7 +953,7 @@ class Smashtheque(commands.Cog):
         \n\nVous devez ajouter au minimum le pseudo et les personnages joués (dans l'ordre).
         \n\nVous pouvez aussi ajouter sa team, sa localisation et, s'il possède un compte Discord, son ID pour qu'il puisse modifier lui-même son compte.
         \n\nVous pouvez récupérer l'ID avec les options de developpeur (activez-les dans l'onglet Apparence des paramètres de l'utilisateur, puis faites un clic droit sur l'utilisateur et sélectionnez \"Copier ID\".)
-        \n\n\nExemples : \n- !creerjoueur Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>\n- !creerjoueur red <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
+        \n\n\nExemples : \n- creerjoueur Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>\n- creerjoueur red <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
 
         try:
             await self.do_addplayer(ctx, arg)
@@ -965,7 +965,7 @@ class Smashtheque(commands.Cog):
     async def jesuis(self, ctx, *, pseudo):
         """cette commande va vous permettre d'associer votre compte Discord à un joueur de la Smashthèque.
         \n\nVous devez préciser un pseudo.
-        \n\n\nExemples : \n- !jesuis Pixel\n- !jesuis red\n"""
+        \n\n\nExemples : \n- jesuis Pixel\n- jesuis red\n"""
 
         try:
             await self.do_link(ctx, pseudo, ctx.author.id)
@@ -978,7 +978,7 @@ class Smashtheque(commands.Cog):
     async def associer(self, ctx, *, arg):
         """cette commande va vous permettre d'associer un compte Discord à un joueur de la Smashthèque.
         \n\nVous devez préciser son pseudo et son ID Discord.
-        \n\n\nExemples : \n- !associer Pixel 608210202952466464\n- !associer red 332894758076678144\n"""
+        \n\n\nExemples : \n- associer Pixel 608210202952466464\n- associer red 332894758076678144\n"""
 
         try:
             args = arg.split()
@@ -993,7 +993,7 @@ class Smashtheque(commands.Cog):
     @commands.admin_or_permissions(administrator=True)
     async def jenesuispas(self, ctx):
         """cette commande permet de dissocier votre compte Discord d'un joueur de la Smashthèque.
-        \n\n\nExemples : \n- !jenesuispas\n"""
+        \n\n\nExemples : \n- jenesuispas\n"""
 
         try:
             await self.do_unlink(ctx, ctx.author)
@@ -1006,7 +1006,7 @@ class Smashtheque(commands.Cog):
     async def dissocier(self, ctx, *, target_member: discord.Member):
         """cette commande permet de dissocier un compte Discord d'un joueur de la Smashthèque.
         \n\nVous devez préciser son ID Discord.
-        \n\n\nExemples : \n- !dissocier 608210202952466464\n- !dissocier 332894758076678144\n"""
+        \n\n\nExemples : \n- dissocier 608210202952466464\n- dissocier 332894758076678144\n"""
 
         try:
             await self.do_unlink(ctx, target_member)
