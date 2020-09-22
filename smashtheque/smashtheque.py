@@ -947,13 +947,13 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<pseudo> <emojis de persos> [team] [localisation] [ID Discord]")
+    @commands.command(usage="<pseudo> <emojis ou noms de persos> [team] [localisation] [ID Discord]")
     async def creerjoueur(self, ctx, *, arg):
         """cette commande va vous permettre d'ajouter un joueur dans la Smashthèque.
         \n\nVous devez ajouter au minimum le pseudo et les personnages joués (dans l'ordre).
         \n\nVous pouvez aussi ajouter sa team, sa localisation et, s'il possède un compte Discord, son ID pour qu'il puisse modifier lui-même son compte.
         \n\nVous pouvez récupérer l'ID avec les options de developpeur (activez-les dans l'onglet Apparence des paramètres de l'utilisateur, puis faites un clic droit sur l'utilisateur et sélectionnez \"Copier ID\".)
-        \n\n\nExemples : \n- creerjoueur Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>\n- creerjoueur red <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
+        \n\n\nExemples : \n- creerjoueur Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>\n- creerjoueur Pixel Yoshi Bowser\n- creerjoueur red <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
 
         try:
             await self.do_addplayer(ctx, arg)
@@ -1047,7 +1047,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<emojis de persos>")
+    @commands.command(usage="<emojis ou noms de persos>")
     async def ajouterpersos(self, ctx, *, emojis):
         try:
             await self.do_addcharacters(ctx, ctx.author.id, emojis)
@@ -1055,7 +1055,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<emojis de persos>")
+    @commands.command(usage="<emojis ou noms de persos>")
     async def enleverpersos(self, ctx, *, emojis):
         try:
             await self.do_removecharacters(ctx, ctx.author.id, emojis)
@@ -1063,7 +1063,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<emojis de persos>")
+    @commands.command(usage="<emojis ou noms de persos>")
     async def remplacerpersos(self, ctx, *, emojis):
         try:
             await self.do_replacecharacters(ctx, ctx.author.id, emojis)
