@@ -16,6 +16,7 @@ import sys
 import unicodedata
 from collections.abc import Mapping
 from collections import UserDict
+from random import choice
 
 def normalize_str(s):
     s1 = ''.join(
@@ -919,6 +920,11 @@ class Smashtheque(commands.Cog):
             character_ids.append(char["id"])
         await self.update_player(ctx, player["id"], {"character_ids": character_ids})
 
+    async def do_chifoumi(self, ctx):
+        result = choice(["pile", "face"])
+        await ctx.send(result)
+        return
+
     # -------------------------------------------------------------------------
     # COMMANDS
     # -------------------------------------------------------------------------
@@ -1107,6 +1113,14 @@ class Smashtheque(commands.Cog):
     async def chercherjoueur(self, ctx, *, name):
         try:
             await self.do_findplayer(ctx, name)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command()
+    async def pileouface(self, ctx):
+        try:
+            await self.do_chifoumi(ctx)
         except:
             rollbar.report_exc_info()
             raise
