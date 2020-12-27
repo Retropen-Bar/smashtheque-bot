@@ -9,11 +9,22 @@ from redbot.core.bot import Red
 from typing import Optional
 import re
 import json
+import math
 import rollbar
 import os
 import sys
+import unicodedata
 from collections.abc import Mapping
 from collections import UserDict
+from random import choice
+
+def normalize_str(s):
+    s1 = ''.join(
+        c for c in unicodedata.normalize('NFD', s)
+        if unicodedata.category(c) != 'Mn'
+    )
+    s2 = re.sub("[^a-zA-Z]+", "", s1)
+    return s2.lower()
 
 async def yeet(ctx, erreur):
     """lever des erreurs"""
@@ -23,7 +34,7 @@ async def yeet(ctx, erreur):
         colour=discord.Colour.red()
     )
     embed.set_author(
-        name="smashthèque ",
+        name="Smashthèque",
         icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
     )
     await ctx.send(embed=embed)
@@ -38,7 +49,7 @@ async def uniqueyeet(ctx, erreur, playername):
         colour=discord.Colour.red()
     )
     embed.set_author(
-        name="smashthèque ",
+        name="Smashthèque",
         icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
     )
     await ctx.send(embed=embed)
@@ -53,19 +64,23 @@ def loop_dict(dict_to_use, value, parameter):
         if sub[value] == parameter:
             return sub
 
+def format_emoji(emoji_id):
+    return f"<:placeholder:{emoji_id}>"
 
-def format_emojis(id_list):
-    """transformer des émoji id en émojis discord"""
-    end = ""
-    print(id_list)
-    for i in id_list:
-        print(i)
-        end = end + f"<:placeholder:{i}>"
-    return end
+def format_character(character):
+    return format_emoji(character["emoji"])
 
+def format_discord_user(discord_id):
+    return f"<@{discord_id}>"
+
+def format_team(team):
+    return "{0} ({1})".format(team["name"], team["short_name"])
+
+def format_location(location):
+    return location["name"].title()
 
 def is_discord_id(v):
-    return v.isdigit() and len(str(v)) == 18
+    return v.isdigit() and (len(str(v)) == 17 or len(str(v)) == 18)
 
 def is_emoji(v):
     return re.search(r"<a?:(\w+):(\d+)>", v) != None
@@ -102,7 +117,7 @@ class Smashtheque(commands.Cog):
                 rollbar_env = rollbar_token["environment"]
             else:
                 rollbar_env = 'production'
-        rollbar.init(rollbar_token, rollbar_env)
+        rollbar.init(rollbar_token, 'development')
 
         try:
             if 'SMASHTHEQUE_API_URL' in os.environ and os.environ['SMASHTHEQUE_API_URL']:
@@ -122,6 +137,7 @@ class Smashtheque(commands.Cog):
             }
             self._session = aiohttp.ClientSession(headers=headers)
             self._characters_cache = {}
+            self._characters_names_cache = {}
             self._locations_cache = {}
             self._teams_cache = {}
         except:
@@ -137,6 +153,11 @@ class Smashtheque(commands.Cog):
     def api_url(self, collection):
         return f"{self.api_base_url}/api/v1/{collection}"
 
+    def is_character_name(self, v):
+        return normalize_str(v) in self._characters_names_cache
+
+    def is_character(self, v):
+        return is_emoji(v) or self.is_character_name(v)
 
     async def fetch_characters(self):
         print('fetch_characters')
@@ -145,18 +166,37 @@ class Smashtheque(commands.Cog):
             # puts values in cache before responding
             for character in characters:
                 self._characters_cache[str(character["id"])] = character
+                self._characters_names_cache[normalize_str(character["name"])] = character["id"]
             # respond
             return characters
 
-    async def find_character_by_emoji_tag(self, ctx, emoji):
-        # fill cache if empty
-        if len(self._characters_cache) < 1:
+    async def fetch_characters_if_needed(self):
+        print('fetch_characters_if_needed')
+        if len(self._characters_cache) < 1 or len(self._characters_names_cache) < 1:
             await self.fetch_characters()
+
+    async def find_character_by_label(self, ctx, label):
+
+        # fill characters cache if empty
+        await self.fetch_characters_if_needed()
+
+        if is_emoji(label):
+            character = await self.find_character_by_emoji_tag(ctx, label)
+            return character
+
+        if self.is_character_name(label):
+            character = await self.find_character_by_name(ctx, label)
+            return character
+
+        await yeet(ctx, f"Perso {label} non reconnu")
+        return None
+
+    async def find_character_by_emoji_tag(self, ctx, emoji):
         found = re.search(r"[0-9]+", emoji)
         if found == None:
             await yeet(
                 ctx,
-                f"Emoji {emoji} non reconnu : veuillez utiliser les émojis de personnages de ce serveur."
+                f"Emoji {emoji} non reconnu : veuillez utiliser les émojis de personnages de la Smashthèque ou utiliser un nom de personnage."
             )
             return None
         emoji_id = found.group()
@@ -166,9 +206,14 @@ class Smashtheque(commands.Cog):
                 return character
         await yeet(
             ctx,
-            f"Emoji {emoji} non reconnu : veuillez utiliser les émojis de personnages de ce serveur."
+            f"Emoji {emoji} non reconnu : veuillez utiliser les émojis de personnages de la Smashthèque ou utiliser un nom de personnage."
         )
         return None
+
+    # this method is called when we are sure @name exists as a key of @_characters_names_cache
+    async def find_character_by_name(self, ctx, name):
+        character_id = self._characters_names_cache[normalize_str(name)]
+        return self._characters_cache[str(character_id)]
 
     async def find_team_by_short_name(self, short_name):
         request_url = "{0}?by_short_name_like={1}".format(self.api_url("teams"), short_name)
@@ -181,6 +226,12 @@ class Smashtheque(commands.Cog):
                 return teams[0]
             else:
                 return None
+
+    async def find_team_by_id(self, team_id):
+        request_url = "{api_url}/{team_id}".format(api_url=self.api_url("teams"), team_id=team_id)
+        async with self._session.get(request_url) as response:
+            team = await response.json()
+            return team #or team[0]
 
     async def find_location_by_name(self, name):
         request_url = "{0}?by_name_like={1}".format(self.api_url("locations"), name)
@@ -221,16 +272,22 @@ class Smashtheque(commands.Cog):
             players = await response.json()
             return players
 
+    async def find_member_by_discord_id(self, discord_id):
+        request_url = "{api_url}/{discord_id}".format(api_url=self.api_url("discord_users"), discord_id=discord_id)
+        async with self._session.get(request_url) as response:
+            player = await response.json()
+            return player if player != [] else None
+
     async def raise_message(self, ctx, message):
         embed = discord.Embed(title=message)
         embed.set_author(
-            name="smashthèque ",
+            name="Smashthèque",
             icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
         )
         await ctx.send(embed=embed)
 
     async def raise_not_linked(self, ctx):
-        await self.raise_message(ctx, "Votre compte Discord n'est associé à aucun joueur.\nUtilisez `!jesuis` pour associer votre compte à un joueur.")
+        await self.raise_message(ctx, f"Votre compte Discord n'est associé à aucun joueur.\nUtilisez `{ctx.clean_prefix}jesuis` pour associer votre compte à un joueur.")
 
     async def ask_confirmation(self, ctx, embed):
         temp_message = await ctx.send(embed=embed)
@@ -285,35 +342,44 @@ class Smashtheque(commands.Cog):
     def embed_player(self, embed, _player, with_index=False, index=0):
         player = Map(_player)
 
-        alts_emojis = []
+        personnages = []
         if "characters" in _player:
             for character in player.characters:
-                alts_emojis.append(character["emoji"])
+                personnages.append(format_character(character))
         elif "character_ids" in _player:
             for character_id in player.character_ids:
-                alts_emojis.append(self._characters_cache[str(character_id)]["emoji"])
-        personnages = format_emojis(alts_emojis)
+                personnages.append(format_character(self._characters_cache[str(character_id)]))
+        if len(personnages) < 1:
+            personnages.append("\u200b")
 
         player_name = player.name
         if with_index:
             player_name = ReactionPredicate.NUMBER_EMOJIS[index] + " " + player_name
-        embed.add_field(name=player_name, value=personnages, inline=True)
+        embed.add_field(name=player_name, value="".join(personnages), inline=True)
 
-        team_name = None
-        if "team" in _player and player.team != None:
-            team_name = player.team["name"]
-        elif "team_id" in _player and player.team_id != None:
-            team_name = self._teams_cache[str(player.team_id)]["name"]
-        if team_name != None:
-            embed.add_field(name="Team", value=team_name, inline=True)
+        team_names = []
+        if "teams" in _player:
+            for team in player.teams:
+                team_names.append(format_team(team))
+        elif "team_ids" in _player:
+            for team_id in player.team_ids:
+                team_names.append(format_team(self._teams_cache[str(team_id)]))
+        if len(team_names) > 0:
+            embed.add_field(name="Équipes", value="\n".join(team_names), inline=True)
 
-        location_name = None
-        if "location" in _player and player.location != None:
-            location_name = player.location["name"]
-        elif "location_id" in _player and player.location_id != None:
-            location_name = self._locations_cache[str(player.location_id)]["name"]
-        if location_name != None:
-            embed.add_field(name="Localisation", value=location_name, inline=True)
+        location_names = []
+        if "locations" in _player:
+            for location in player.locations:
+                location_names.append(format_location(location))
+        elif "location_ids" in _player:
+            for location_id in player.location_ids:
+                location_names.append(format_location(self._locations_cache[str(location_id)]))
+        if len(location_names) > 0:
+            embed.add_field(name="Localisations", value="\n".join(location_names), inline=True)
+
+        if "discord_id" in _player and player.discord_id != None:
+            discord_user = format_discord_user(player.discord_id)
+            embed.add_field(name="Compte Discord", value=discord_user, inline=True)
 
     async def confirm_create_player(self, ctx, player):
         embed = discord.Embed(
@@ -393,7 +459,7 @@ class Smashtheque(commands.Cog):
                     await generic_error(ctx, erreur)
                     return
 
-    async def do_addlocation(self, ctx, name, country=False):
+    async def do_createlocation(self, ctx, name, country=False):
         print(f"create location {name}")
         payload = {"name": name}
         if country:
@@ -418,8 +484,8 @@ class Smashtheque(commands.Cog):
 
     async def do_addplayer(self, ctx, arg):
 
-        # fetch characters once
-        await self.fetch_characters()
+        # fill characters cache if empty
+        await self.fetch_characters_if_needed()
 
         # stages:
         # 0: pseudo
@@ -431,7 +497,13 @@ class Smashtheque(commands.Cog):
         current_stage = 0
 
         # init de la réponse
-        response = {"name": "", "character_ids": [], "creator_discord_id": ""}
+        response = {
+            "name": "",
+            "character_ids": [],
+            "creator_discord_id": "",
+            "location_ids": [],
+            "team_ids": []
+        }
 
         # process each argument between spaces
         # [name piece] [name piece] [emoji] [emoji] [team] [location] [discord ID]
@@ -445,7 +517,7 @@ class Smashtheque(commands.Cog):
                 # at this stage, the next argument could be a name piece
                 # ... [name piece] [emoji] [emoji] [team] [location] [discord ID]
 
-                if is_emoji(argu):
+                if self.is_character(argu):
                     if len(response["name"]) > 0:
                         # we are actually done with the name, so go to stage 1
                         current_stage = 1
@@ -469,13 +541,13 @@ class Smashtheque(commands.Cog):
                 # at this stage, the next argument could be a character emoji
                 # ... [emoji] [emoji] [team] [location] [discord ID]
 
-                if not is_emoji(argu):
+                if not self.is_character(argu):
                     # we are actually done with the emojis, so go to stage 2
                     current_stage = 2
                     # do not 'continue' here because we stil want to process @argu
                 else:
                     # more emojis to parse
-                    character = await self.find_character_by_emoji_tag(ctx, argu)
+                    character = await self.find_character_by_label(ctx, argu)
                     if character == None:
                         return
                     response["character_ids"].append(character["id"])
@@ -496,7 +568,7 @@ class Smashtheque(commands.Cog):
 
                 team = await self.find_team_by_short_name(argu)
                 if team != None:
-                    response["team_id"] = team["id"]
+                    response["team_ids"].append(team["id"])
                     current_stage = 3
                     continue
 
@@ -516,7 +588,7 @@ class Smashtheque(commands.Cog):
 
                 location = await self.find_location_by_name(argu)
                 if location != None:
-                    response["location_id"] = location["id"]
+                    response["location_ids"].append(location["id"])
                     current_stage = 4
                     continue
 
@@ -539,25 +611,25 @@ class Smashtheque(commands.Cog):
                     break
 
                 # so we were unable to parse argu
-                if "location_id" in response and response["location_id"] != None:
+                if len(response["location_ids"]) > 0:
                     # we have a location, so we are pretty sure argu was supposed to be a Discord ID
                     await yeet(
                         ctx,
                         f"Veuillez entrer un ID Discord correct pour le joueur à ajouter : {argu} n'en est pas un.\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
                     )
                     return
-                elif "team_id" in response and response["team_id"] != None:
+                elif len(response["team_ids"]) > 0:
                     # we have a team, so argu could be for a location or a Discord ID
                     await yeet(
                         ctx,
-                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec !ajouterville ou !ajouterpays.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
+                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec `{ctx.clean_prefix}creerville` ou `{ctx.clean_prefix}creerpays`.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
                     )
                     return
                 else:
                     # we have no team and no location: argu could be for a team, a location or a Discord ID
                     await yeet(
                         ctx,
-                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une équipe, vous devez demander à un administrateur de la créer.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec !ajouterville ou !ajouterpays.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
+                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une équipe, vous devez demander à un administrateur de la créer.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec `{ctx.clean_prefix}creerville` ou `{ctx.clean_prefix}creerpays`.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
                     )
                     return
 
@@ -586,7 +658,7 @@ class Smashtheque(commands.Cog):
 
         # no player found
         if len(players) == 0:
-            await self.raise_message(ctx, "Ce pseudo n'existe pas.\nUtilisez la commande `!ajouterjoueur` pour l'ajouter.\n")
+            await self.raise_message(ctx, f"Ce pseudo n'existe pas.\nUtilisez la commande `{ctx.clean_prefix}creerjoueur` pour l'ajouter.\n")
             return
 
         # one player found: ask confirmation
@@ -604,7 +676,8 @@ class Smashtheque(commands.Cog):
                 await self.raise_message(ctx, "Il semblerait que ce joueur soit déjà associé à un compte Discord")
                 return
             await self.update_player(ctx, player["id"], {"discord_id": str(discord_id)})
-            await self.show_confirmation(ctx, f"Le compte Discord {discord_id} est maintenant associé au joueur {pseudo}.")
+            discord_user = format_discord_user(discord_id)
+            await self.show_confirmation(ctx, f"Le compte Discord {discord_user} est maintenant associé au joueur {pseudo}.")
             return
 
         # multiple players found: ask which one
@@ -619,7 +692,8 @@ class Smashtheque(commands.Cog):
             await self.raise_message(ctx, "Il semblerait que ce joueur soit déjà associé à un compte Discord")
             return
         await self.update_player(ctx, player["id"], {"discord_id": str(discord_id)})
-        await self.show_confirmation(ctx, f"Le compte Discord {discord_id} est maintenant associé au joueur {pseudo}.")
+        discord_user = format_discord_user(discord_id)
+        await self.show_confirmation(ctx, f"Le compte Discord {discord_user} est maintenant associé au joueur {pseudo}.")
 
     async def do_unlink(self, ctx, target_member):
         discord_id = target_member.id
@@ -635,7 +709,45 @@ class Smashtheque(commands.Cog):
             return
         await self.update_player(ctx, player["id"], {"discord_id": None})
         player_name = player["name"]
-        await self.show_confirmation(ctx, f"Le compte Discord {discord_id} a été dissocié du joueur {player_name}.")
+        discord_user = format_discord_user(discord_id)
+        await self.show_confirmation(ctx, f"Le compte Discord {discord_user} a été dissocié du joueur {player_name}.")
+
+    async def do_showplayer(self, ctx, target_member):
+        discord_id = target_member.id
+        player = await self.find_player_by_discord_id(discord_id)
+        if player == None:
+            await self.raise_not_linked(ctx)
+            return
+        embed = discord.Embed(
+            title="Ce compte Discord est associé au joueur suivant :",
+            colour=discord.Colour.green(),
+        )
+        self.embed_player(embed, player)
+        await ctx.send(embed=embed)
+
+    async def do_findplayer(self, ctx, name):
+        players = await self.find_players_by_name_like(name)
+
+        # no player found
+        if len(players) == 0:
+            await self.raise_message(ctx, f"Aucun joueur connu avec ce pseudo.\nVous pouvez utiliser la commande `{ctx.clean_prefix}creerjoueur` pour ajouter un joueur.\n")
+            return
+
+        if len(players) == 1:
+            player = players[0]
+            embed = discord.Embed(
+                title="Joueur trouvé :",
+                colour=discord.Colour.green()
+            )
+            self.embed_player(embed, player)
+        else:
+            embed = discord.Embed(
+                title="Plusieurs joueurs ont ce pseudo :",
+                colour=discord.Colour.green()
+            )
+            self.embed_players(embed, players)
+        await ctx.send(embed=embed)
+        return
 
     async def do_editname(self, ctx, discord_id, new_name):
         player = await self.find_player_by_discord_id(discord_id)
@@ -644,38 +756,53 @@ class Smashtheque(commands.Cog):
             return
         await self.update_player(ctx, player["id"], {"name": new_name})
 
-    async def do_removelocation(self, ctx, discord_id):
+    async def do_removelocation(self, ctx, discord_id, location_name):
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
             await self.raise_not_linked(ctx)
             return
-        await self.update_player(ctx, player["id"], {"location_id": None})
-
-    async def do_editlocation(self, ctx, discord_id, location_name):
-        player = await self.find_player_by_discord_id(discord_id)
-        if player == None:
-            await self.raise_not_linked(ctx)
-            return
+        location_ids = player["location_ids"]
         location = await self.find_location_by_name(location_name)
         if location == None:
             await self.raise_message(
                 ctx,
-                f"Nous n'avons pas réussi à trouver {location_name}.\nS'il s'agit d'une ville, vous pouvez l'ajouter à la Smashthèque avec !ajouterville.\nS'il s'agit d'un pays, vous pouvez l'ajouter à la Smashthèque avec !ajouterpays"
+                f"Nous n'avons pas réussi à trouver {location_name}.\nS'il s'agit d'une ville, vous pouvez l'ajouter à la Smashthèque avec `{ctx.clean_prefix}creerville`.\nS'il s'agit d'un pays, vous pouvez l'ajouter à la Smashthèque avec `{ctx.clean_prefix}creerpays`"
             )
-        await self.update_player(ctx, player["id"], {"location_id": location["id"]})
+            return
+        location_id = location["id"]
+        if location_id in location_ids:
+            location_ids.remove(location_id)
+        await self.update_player(ctx, player["id"], {"location_ids": location_ids})
 
-    async def do_removeteam(self, ctx, discord_id):
+    async def do_addlocation(self, ctx, discord_id, location_name):
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
             await self.raise_not_linked(ctx)
             return
-        await self.update_player(ctx, player["id"], {"team_id": None})
+        location_ids = player["location_ids"]
+        location = await self.find_location_by_name(location_name)
+        if location == None:
+            await self.raise_message(
+                ctx,
+                f"Nous n'avons pas réussi à trouver {location_name}.\nS'il s'agit d'une ville, vous pouvez l'ajouter à la Smashthèque avec `{ctx.clean_prefix}creerville`.\nS'il s'agit d'un pays, vous pouvez l'ajouter à la Smashthèque avec `{ctx.clean_prefix}creerpays`."
+            )
+            return
+        location_id = location["id"]
+        if location_id in location_ids:
+            await self.raise_message(
+                ctx,
+                f"Ce joueur est déjà localisé à {location_name}."
+            )
+            return
+        location_ids.append(location_id)
+        await self.update_player(ctx, player["id"], {"location_ids": location_ids})
 
-    async def do_editteam(self, ctx, discord_id, team_short_name):
+    async def do_removeteam(self, ctx, discord_id, team_short_name):
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
             await self.raise_not_linked(ctx)
             return
+        team_ids = player["team_ids"]
         team = await self.find_team_by_short_name(team_short_name)
         if team == None:
             await self.raise_message(
@@ -683,29 +810,101 @@ class Smashtheque(commands.Cog):
                 f"Nous n'avons pas réussi à trouver l'équipe {team_short_name}.\nVous pouvez demander à un administrateur de la créer."
             )
             return
-        await self.update_player(ctx, player["id"], {"team_id": team["id"]})
+        team_id = team["id"]
+        if team_id in team_ids:
+            team_ids.remove(team_id)
+        await self.update_player(ctx, player["id"], {"team_ids": team_ids})
 
-    async def do_addcharacters(self, ctx, discord_id, emojis):
+    async def do_addteam(self, ctx, discord_id, team_short_name):
+        player = await self.find_player_by_discord_id(discord_id)
+        if player == None:
+            await self.raise_not_linked(ctx)
+            return
+        team_ids = player["team_ids"]
+        team = await self.find_team_by_short_name(team_short_name)
+        if team == None:
+            await self.raise_message(
+                ctx,
+                f"Nous n'avons pas réussi à trouver l'équipe {team_short_name}.\nVous pouvez demander à un administrateur de la créer."
+            )
+            return
+        team_id = team["id"]
+        if team_id in team_ids:
+            await self.raise_message(
+                ctx,
+                f"Ce joueur est déjà membre de l'équipe {team_short_name}."
+            )
+            return
+        team_ids.append(team_id)
+        await self.update_player(ctx, player["id"], {"team_ids": team_ids})
+
+    async def do_listavailablecharacters(self, ctx):
+
+        # fill characters cache if empty
+        await self.fetch_characters_if_needed()
+
+        lines = []
+        for character_id in self._characters_cache:
+            character = self._characters_cache[str(character_id)]
+            tag = format_character(character)
+            name = character["name"]
+            lines.append([tag, name])
+        lines.sort(key=lambda l: l[1])
+        for idx in range(0, len(lines)):
+            lines[idx] = " ".join(lines[idx])
+
+        parts = math.ceil(len(lines) / 30)
+        part = 0
+        for i in range(0, len(lines), 30):
+            part += 1
+            embed = discord.Embed(
+                title=f"Personnages possibles ({part}/{parts}) :",
+                description="\n".join(lines[i:i + 30]),
+                colour=discord.Colour.blue()
+            )
+            embed.set_author(
+                name="Smashthèque",
+                icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
+            )
+            await ctx.send(embed=embed)
+
+    async def do_addcharacters(self, ctx, discord_id, labels):
+
+        # fill characters cache if empty
+        await self.fetch_characters_if_needed()
+
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
             await self.raise_not_linked(ctx)
             return
         character_ids = player["character_ids"]
-        for emoji_tag in emojis.split():
-            char = await self.find_character_by_emoji_tag(ctx, emoji_tag)
-            if char == None:
+        for label in labels.split():
+            character = await self.find_character_by_label(ctx, label)
+            if character == None:
                 return
-            character_ids.append(char["id"])
+            character_id = character["id"]
+            if character_id in character_ids:
+                character_tag = format_character(character)
+                await self.raise_message(
+                    ctx,
+                    f"{character_tag} est déjà indiqué sur ce joueur."
+                )
+                return
+            character_ids.append(character_id)
         await self.update_player(ctx, player["id"], {"character_ids": character_ids})
 
-    async def do_removecharacters(self, ctx, discord_id, emojis):
+    async def do_removecharacters(self, ctx, discord_id, labels):
+
+        # fill characters cache if empty
+        await self.fetch_characters_if_needed()
+
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
             await self.raise_not_linked(ctx)
             return
         character_ids = player["character_ids"]
-        for emoji_tag in emojis.split():
-            char = await self.find_character_by_emoji_tag(ctx, emoji_tag)
+        for label in labels.split():
+            char = await self.find_character_by_label(ctx, label)
             if char == None:
                 return
             char_id = char["id"]
@@ -716,54 +915,105 @@ class Smashtheque(commands.Cog):
             return
         await self.update_player(ctx, player["id"], {"character_ids": character_ids})
 
-    async def do_replacecharacters(self, ctx, discord_id, emojis):
+    async def do_replacecharacters(self, ctx, discord_id, labels):
+
+        # fill characters cache if empty
+        await self.fetch_characters_if_needed()
+
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
             await self.raise_not_linked(ctx)
             return
         character_ids = []
-        for emoji_tag in emojis.split():
-            char = await self.find_character_by_emoji_tag(ctx, emoji_tag)
+        for label in labels.split():
+            char = await self.find_character_by_label(ctx, label)
             if char == None:
                 return
             character_ids.append(char["id"])
         await self.update_player(ctx, player["id"], {"character_ids": character_ids})
+
+    async def do_chifoumi(self, ctx):
+        result = choice(["pile", "face"])
+        await ctx.send(result)
+        return
+    
+    async def do_majlogo(self, ctx):
+        "will update a team's logo"
+        player = self.find_member_by_discord_id(ctx.author.id)
+        if player is None:
+            await yeet(ctx, "Vous n'êtes pas enregistré dans la smashtheque.")
+            return
+        elif player["administrated_teams"] == []:
+            await yeet(ctx, "Vous n'êtes l'admin d'aucune team.")
+            return
+        attachement = ctx.message.attachments
+        if len(attachement) >= 2:
+            await yeet(ctx, "Veuillez n'envoyer qu'une seule image.")
+            return
+        elif len(attachement) == 0:
+            await yeet(ctx, "veuillez envoyer une logo pour la team.")
+            return
+        if len(player["administrated_teams"]) > 1:
+            embed = discord.Embed(title="Vous âtes administrateur de plusieurs teams. ", description="De quelle team faut-il modifier le logo ?")
+            for team_entry in player["administrated_teams"]:
+                embed.add_field(name=player["administrated_teams"]["short_name"], value=player["administrated_teams"]["name"])
+        team = self.find_team_by_id(player["administrated_teams"][0]["id"])            
+        embed = discord.Embed(title=f"Vous êtes sur le point de changer le logo de la team {team['name']} pour :")
+        embed.set_author(
+        name="Smashthèque",
+        icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
+        )
+        embed.set_image(ctx.message.attachments[0].url)
+        confirmation = await self.ask_confirmation(ctx, embed)
+        if not confirmation: 
+            return
+        request_url = f"{self.api_url('teams')}/{team['id']}"
+        reply_body = {
+
+        }
+        async with self._session.patch(request_url, ) as response:
+            if response.status != 200:
+                await generic_error(ctx, f"error in command majlogo : status code {response.status}, response : {response}")
+                return
+            else:
+                self.show_confirmation(ctx, f"Le logo de la team {team['name']} a été mis à jour avec succès.")
+                
 
     # -------------------------------------------------------------------------
     # COMMANDS
     # -------------------------------------------------------------------------
 
     @commands.command(usage="<nom>")
-    async def ajouterville(self, ctx, *, name):
+    async def creerville(self, ctx, *, name):
         """cette commande va vous permettre d'ajouter une ville dans la Smashthèque.
         \n\nVous devez préciser son nom.
-        \n\n\nExemples : \n- !ajouterville Paris\n- !ajouterville Lyon\n"""
+        \n\n\nExemples : \n- creerville Paris\n- creerville Lyon\n"""
 
         try:
-            await self.do_addlocation(ctx, name)
+            await self.do_createlocation(ctx, name)
         except:
             rollbar.report_exc_info()
             raise
 
     @commands.command(usage="<nom>")
-    async def ajouterpays(self, ctx, *, name):
+    async def creerpays(self, ctx, *, name):
         """cette commande va vous permettre d'ajouter un pays dans la Smashthèque.
         \n\nVous devez préciser son nom.
-        \n\n\nExemples : \n- !ajouterpays Belgique\n"""
+        \n\n\nExemples : \n- creerpays Belgique\n"""
 
         try:
-            await self.do_addlocation(ctx, name, country=True)
+            await self.do_createlocation(ctx, name, country=True)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<pseudo> <emojis de persos> [team] [localisation] [ID Discord]")
-    async def ajouterjoueur(self, ctx, *, arg):
+    @commands.command(usage="<pseudo> <emojis ou noms de persos> [team] [localisation] [ID Discord]")
+    async def creerjoueur(self, ctx, *, arg):
         """cette commande va vous permettre d'ajouter un joueur dans la Smashthèque.
         \n\nVous devez ajouter au minimum le pseudo et les personnages joués (dans l'ordre).
         \n\nVous pouvez aussi ajouter sa team, sa localisation et, s'il possède un compte Discord, son ID pour qu'il puisse modifier lui-même son compte.
         \n\nVous pouvez récupérer l'ID avec les options de developpeur (activez-les dans l'onglet Apparence des paramètres de l'utilisateur, puis faites un clic droit sur l'utilisateur et sélectionnez \"Copier ID\".)
-        \n\n\nExemples : \n- !ajouterjoueur Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>\n- !ajouterjoueur red <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
+        \n\n\nExemples : \n- creerjoueur Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>\n- creerjoueur Pixel Yoshi Bowser\n- creerjoueur red <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
 
         try:
             await self.do_addplayer(ctx, arg)
@@ -775,7 +1025,7 @@ class Smashtheque(commands.Cog):
     async def jesuis(self, ctx, *, pseudo):
         """cette commande va vous permettre d'associer votre compte Discord à un joueur de la Smashthèque.
         \n\nVous devez préciser un pseudo.
-        \n\n\nExemples : \n- !jesuis Pixel\n- !jesuis red\n"""
+        \n\n\nExemples : \n- jesuis Pixel\n- jesuis red\n"""
 
         try:
             await self.do_link(ctx, pseudo, ctx.author.id)
@@ -788,7 +1038,7 @@ class Smashtheque(commands.Cog):
     async def associer(self, ctx, *, arg):
         """cette commande va vous permettre d'associer un compte Discord à un joueur de la Smashthèque.
         \n\nVous devez préciser son pseudo et son ID Discord.
-        \n\n\nExemples : \n- !associer Pixel 608210202952466464\n- !associer red 332894758076678144\n"""
+        \n\n\nExemples : \n- associer Pixel 608210202952466464\n- associer red 332894758076678144\n"""
 
         try:
             args = arg.split()
@@ -800,10 +1050,10 @@ class Smashtheque(commands.Cog):
             raise
 
     @commands.command()
-    @commands.is_owner()
+    @commands.admin_or_permissions(administrator=True)
     async def jenesuispas(self, ctx):
         """cette commande permet de dissocier votre compte Discord d'un joueur de la Smashthèque.
-        \n\n\nExemples : \n- !jenesuispas\n"""
+        \n\n\nExemples : \n- jenesuispas\n"""
 
         try:
             await self.do_unlink(ctx, ctx.author)
@@ -816,10 +1066,27 @@ class Smashtheque(commands.Cog):
     async def dissocier(self, ctx, *, target_member: discord.Member):
         """cette commande permet de dissocier un compte Discord d'un joueur de la Smashthèque.
         \n\nVous devez préciser son ID Discord.
-        \n\n\nExemples : \n- !dissocier 608210202952466464\n- !dissocier 332894758076678144\n"""
+        \n\n\nExemples : \n- dissocier 608210202952466464\n- dissocier 332894758076678144\n"""
 
         try:
             await self.do_unlink(ctx, target_member)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command(usage="<ID Discord>")
+    @commands.admin_or_permissions(administrator=True)
+    async def quiest(self, ctx, *, target_member: discord.Member):
+        try:
+            await self.do_showplayer(ctx, target_member)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command()
+    async def quisuisje(self, ctx):
+        try:
+            await self.do_showplayer(ctx, ctx.author)
         except:
             rollbar.report_exc_info()
             raise
@@ -832,7 +1099,15 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<emojis de persos>")
+    @commands.command()
+    async def persos(self, ctx):
+        try:
+            await self.do_listavailablecharacters(ctx)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command(usage="<emojis ou noms de persos>")
     async def ajouterpersos(self, ctx, *, emojis):
         try:
             await self.do_addcharacters(ctx, ctx.author.id, emojis)
@@ -840,7 +1115,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<emojis de persos>")
+    @commands.command(usage="<emojis ou noms de persos>")
     async def enleverpersos(self, ctx, *, emojis):
         try:
             await self.do_removecharacters(ctx, ctx.author.id, emojis)
@@ -848,7 +1123,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<emojis de persos>")
+    @commands.command(usage="<emojis ou noms de persos>")
     async def remplacerpersos(self, ctx, *, emojis):
         try:
             await self.do_replacecharacters(ctx, ctx.author.id, emojis)
@@ -856,34 +1131,50 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command()
-    async def enleverequipe(self, ctx):
+    @commands.command(usage="<team>")
+    async def quitter(self, ctx, *, team_short_name):
         try:
-            await self.do_removeteam(ctx, ctx.author.id)
+            await self.do_removeteam(ctx, ctx.author.id, team_short_name)
         except:
             rollbar.report_exc_info()
             raise
 
     @commands.command(usage="<team>")
-    async def changerequipe(self, ctx, *, team_short_name):
+    async def integrer(self, ctx, *, team_short_name):
         try:
-            await self.do_editteam(ctx, ctx.author.id, team_short_name)
+            await self.do_addteam(ctx, ctx.author.id, team_short_name)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command(usage="<localisation>")
+    async def enleverlocalisation(self, ctx, *, location_name):
+        try:
+            await self.do_removelocation(ctx, ctx.author.id, location_name)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command(usage="<localisation>")
+    async def ajouterlocalisation(self, ctx, *, location_name):
+        try:
+            await self.do_addlocation(ctx, ctx.author.id, location_name)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command(usage="<pseudo>")
+    async def chercherjoueur(self, ctx, *, name):
+        try:
+            await self.do_findplayer(ctx, name)
         except:
             rollbar.report_exc_info()
             raise
 
     @commands.command()
-    async def enleverlocalisation(self, ctx):
+    async def pileouface(self, ctx):
         try:
-            await self.do_removelocation(ctx, ctx.author.id)
-        except:
-            rollbar.report_exc_info()
-            raise
-
-    @commands.command(usage="<team>")
-    async def changerlocalisation(self, ctx, *, location_name):
-        try:
-            await self.do_editlocation(ctx, ctx.author.id, location_name)
+            await self.do_chifoumi(ctx)
         except:
             rollbar.report_exc_info()
             raise
