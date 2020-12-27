@@ -117,7 +117,7 @@ class Smashtheque(commands.Cog):
                 rollbar_env = rollbar_token["environment"]
             else:
                 rollbar_env = 'production'
-        rollbar.init(rollbar_token, rollbar_env)
+        rollbar.init(rollbar_token, 'development')
 
         try:
             if 'SMASHTHEQUE_API_URL' in os.environ and os.environ['SMASHTHEQUE_API_URL']:
@@ -227,6 +227,12 @@ class Smashtheque(commands.Cog):
             else:
                 return None
 
+    async def find_team_by_id(self, team_id):
+        request_url = "{api_url}/{team_id}".format(api_url=self.api_url("teams"), team_id=team_id)
+        async with self._session.get(request_url) as response:
+            team = await response.json()
+            return team #or team[0]
+
     async def find_location_by_name(self, name):
         request_url = "{0}?by_name_like={1}".format(self.api_url("locations"), name)
         async with self._session.get(request_url) as response:
@@ -265,6 +271,12 @@ class Smashtheque(commands.Cog):
         async with self._session.get(request_url) as response:
             players = await response.json()
             return players
+
+    async def find_member_by_discord_id(self, discord_id):
+        request_url = "{api_url}/{discord_id}".format(api_url=self.api_url("discord_users"), discord_id=discord_id)
+        async with self._session.get(request_url) as response:
+            player = await response.json()
+            return player if player != [] else None
 
     async def raise_message(self, ctx, message):
         embed = discord.Embed(title=message)
@@ -924,6 +936,47 @@ class Smashtheque(commands.Cog):
         result = choice(["pile", "face"])
         await ctx.send(result)
         return
+
+    async def do_majlogo(self, ctx):
+        "will update a team's logo"
+        player = self.find_member_by_discord_id(ctx.author.id)
+        if player is None:
+            await yeet(ctx, "Vous n'êtes pas enregistré dans la smashtheque.")
+            return
+        elif player["administrated_teams"] == []:
+            await yeet(ctx, "Vous n'êtes l'admin d'aucune team.")
+            return
+        attachement = ctx.message.attachments
+        if len(attachement) >= 2:
+            await yeet(ctx, "Veuillez n'envoyer qu'une seule image.")
+            return
+        elif len(attachement) == 0:
+            await yeet(ctx, "veuillez envoyer une logo pour la team.")
+            return
+        if len(player["administrated_teams"]) > 1:
+            embed = discord.Embed(title="Vous âtes administrateur de plusieurs teams. ", description="De quelle team faut-il modifier le logo ?")
+            for team_entry in player["administrated_teams"]:
+                embed.add_field(name=player["administrated_teams"]["short_name"], value=player["administrated_teams"]["name"])
+        team = self.find_team_by_id(player["administrated_teams"][0]["id"])
+        embed = discord.Embed(title=f"Vous êtes sur le point de changer le logo de la team {team['name']} pour :")
+        embed.set_author(
+        name="Smashthèque",
+        icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
+        )
+        embed.set_image(ctx.message.attachments[0].url)
+        confirmation = await self.ask_confirmation(ctx, embed)
+        if not confirmation:
+            return
+        request_url = f"{self.api_url('teams')}/{team['id']}"
+        reply_body = {
+
+        }
+        async with self._session.patch(request_url, ) as response:
+            if response.status != 200:
+                await generic_error(ctx, f"error in command majlogo : status code {response.status}, response : {response}")
+                return
+            else:
+                self.show_confirmation(ctx, f"Le logo de la team {team['name']} a été mis à jour avec succès.")
 
     # -------------------------------------------------------------------------
     # COMMANDS
