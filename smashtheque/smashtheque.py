@@ -937,9 +937,11 @@ class Smashtheque(commands.Cog):
         await ctx.send(result)
         return
     
-    async def do_majlogo(self, ctx):
-        "will update a team's logo"
-        player = self.find_member_by_discord_id(ctx.author.id)
+    async def maj_team_infos(self, ctx, object_name):
+
+        """will update a team info
+        object_name is something like logo, or roster"""
+        player = await self.find_member_by_discord_id(ctx.author.id)
         if player is None:
             await yeet(ctx, "Vous n'êtes pas enregistré dans la smashtheque.")
             return
@@ -951,32 +953,38 @@ class Smashtheque(commands.Cog):
             await yeet(ctx, "Veuillez n'envoyer qu'une seule image.")
             return
         elif len(attachement) == 0:
-            await yeet(ctx, "veuillez envoyer une logo pour la team.")
+            await yeet(ctx, f"veuillez envoyer un {object_name} pour la team.")
             return
+        team = await self.find_team_by_id(player["administrated_teams"][0]["id"])    
         if len(player["administrated_teams"]) > 1:
-            embed = discord.Embed(title="Vous âtes administrateur de plusieurs teams. ", description="De quelle team faut-il modifier le logo ?")
+            embed = discord.Embed(title="Vous âtes administrateur de plusieurs teams. ", description=f"De quelle team faut-il modifier le {object_name} ?")
             for team_entry in player["administrated_teams"]:
-                embed.add_field(name=player["administrated_teams"]["short_name"], value=player["administrated_teams"]["name"])
-        team = self.find_team_by_id(player["administrated_teams"][0]["id"])            
-        embed = discord.Embed(title=f"Vous êtes sur le point de changer le logo de la team {team['name']} pour :")
+                embed.add_field(name=team_entry["short_name"], value=team_entry["name"])
+            choice_result = await self.ask_choice(ctx, embed, len(player["administrated_teams"]))
+            team = await self.find_team_by_id(player["administrated_teams"][choice_result]["id"]) 
+        embed = discord.Embed(title=f"Vous êtes sur le point de changer le {object_name} de la team {team['name']} pour :")
         embed.set_author(
         name="Smashthèque",
         icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
         )
-        embed.set_image(ctx.message.attachments[0].url)
+        embed.set_image(url=ctx.message.attachments[0].url)
         confirmation = await self.ask_confirmation(ctx, embed)
         if not confirmation: 
             return
-        request_url = f"{self.api_url('teams')}/{team['id']}"
+        request_url = f"{self.api_url('teams')}/{team['id']}/"
         reply_body = {
-
+            "team": {
+                f"{object_name}_url": ctx.message.attachments[0].url
+            }
         }
-        async with self._session.patch(request_url, ) as response:
+        async with self._session.patch(request_url, json=reply_body) as response:
             if response.status != 200:
                 await generic_error(ctx, f"error in command majlogo : status code {response.status}, response : {response}")
+                print(response)
+                print(response.text)
                 return
             else:
-                self.show_confirmation(ctx, f"Le logo de la team {team['name']} a été mis à jour avec succès.")
+                await self.show_confirmation(ctx, f"Le {object_name} de la team {team['name']} a été mis à jour avec succès.")
                 
 
     # -------------------------------------------------------------------------
@@ -1175,6 +1183,26 @@ class Smashtheque(commands.Cog):
     async def pileouface(self, ctx):
         try:
             await self.do_chifoumi(ctx)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command()
+    async def majlogo(self, ctx):
+        """Utilisez cette commande avec une image pour changer le logo de votre team. \n
+        Vous devez être administrateur de la team dont vous voulez changer le logo."""
+        try:
+            await self.maj_team_infos(ctx, "logo")
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.command()
+    async def majroster(self, ctx):
+        """Utilisez cette commande avec une image pour changer le roster de votre team. \n
+        Vous devez être administrateur de la team dont vous voulez changer le roster."""
+        try:
+            await self.maj_team_infos(ctx, "roster")
         except:
             rollbar.report_exc_info()
             raise
