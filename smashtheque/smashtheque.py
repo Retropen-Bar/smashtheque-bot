@@ -117,7 +117,7 @@ class Smashtheque(commands.Cog):
                 rollbar_env = rollbar_token["environment"]
             else:
                 rollbar_env = 'production'
-        rollbar.init(rollbar_token, 'development')
+        rollbar.init(rollbar_token, rollbar_env)
 
         try:
             if 'SMASHTHEQUE_API_URL' in os.environ and os.environ['SMASHTHEQUE_API_URL']:
