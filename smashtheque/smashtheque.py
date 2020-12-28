@@ -953,7 +953,8 @@ class Smashtheque(commands.Cog):
             await yeet(ctx, "Veuillez n'envoyer qu'une seule image.")
             return
         elif len(attachement) == 0:
-            await yeet(ctx, f"veuillez envoyer un {object_name} pour la team.")
+            embed = discord.Embed(title=f"Mise à jour du {object_name} de votre team", description=f"Pour changer le {object_name} de votre team, veuillez utiliser cette commande avec une image comme attachement", colour= await ctx.embed_colour())
+            await ctx.send(embed=embed)
             return
         team = await self.find_team_by_id(player["administrated_teams"][0]["id"])
         if len(player["administrated_teams"]) > 1:
