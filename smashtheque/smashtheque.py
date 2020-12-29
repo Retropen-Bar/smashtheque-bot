@@ -1069,7 +1069,7 @@ class Smashtheque(commands.Cog):
             name="Smashthèque",
             icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
         )
-        embed.set_footer("Vous pouvez ajouter l'url du tournois, la commande ainsi que le graph du tournois dans un seul message")
+        embed.set_footer("Vous pouvez ajouter l'url du tournois, la commande ainsi que le graph du tournois dans un seul")
         raise NotImplementedError #endoint to upload tournament does not exist 
 
     # -------------------------------------------------------------------------
