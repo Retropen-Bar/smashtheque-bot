@@ -1051,9 +1051,12 @@ class Smashtheque(commands.Cog):
         elif regex[3] == "smash.gg":
             if regex[5] != "/tournament":
                 await yeet(ctx, "Veuillez envoyer l'url d'un tournois smash.gg valide.")
+            tournament_url = regex[6]
+            if re.match(r"\/", tournament_url):
+                tournament_url = re.match(r".+?(?=\/)", tournament_url)
             tournament_response = {
                 "provider": "smash.gg",
-                "url": regex[6]
+                "url": tournament_url
             }
         attachement = ctx.message.attachments
         if len(attachement) >= 2:
