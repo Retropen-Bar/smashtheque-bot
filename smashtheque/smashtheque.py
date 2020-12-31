@@ -2,6 +2,8 @@ from redbot.core import commands
 from redbot.core.utils.predicates import ReactionPredicate
 from redbot.core.utils.menus import start_adding_reactions
 from redbot.core.utils.chat_formatting import humanize_list
+from redbot.core.utils.predicates import MessagePredicate
+
 import discord
 import asyncio
 import aiohttp
@@ -237,7 +239,10 @@ class Smashtheque(commands.Cog):
             return team #or team[0]
 
     async def find_tournament_by_id(self, tournament_id):
-        raise NotImplementedError
+        request_url = f"{self.api_url('recurring_tournaments')}/{tournament_id}"
+        async with self._session.get(request_url) as response:
+            tournament = await response.json()
+            return tournament
 
     async def find_location_by_name(self, name):
         request_url = "{0}?by_name_like={1}".format(self.api_url("locations"), name)
@@ -466,12 +471,11 @@ class Smashtheque(commands.Cog):
                     return
 
     async def complete_bracket_link(self, ctx, tournament):
-        def check(m):
-            return m.author == ctx.author and m.channel == ctx.channel and m.content is not None
 
-        await ctx.send(f"**Lien du bracket pour l'édition du tournoi {tournament} ?** (envoyez stop pour annuler)")
+        await ctx.send(f"**Lien du bracket pour l'édition du tournoi {tournament['name']} ?** (envoyez stop pour annuler)")
         try:
-            content, channel, author = await self.bot.wait_for('message', timeout=120.0, check=check)
+            content = await self.bot.wait_for('message', timeout=120.0, check=MessagePredicate.same_context(ctx))
+            print(content)
         except asyncio.TimeoutError:
             await ctx.send("commande annulée.")
             return None
@@ -484,7 +488,7 @@ class Smashtheque(commands.Cog):
     async def complete_tournament_graph(self, ctx):
         """no idea how to check if the tournament has a graph"""
         await ctx.send("Si votre tournois possède un graph, veuillez réutiliser la même commande avec le lien du tournois comme argument, et le graph comme attachement.")
-        raise NotImplementedError
+        return
 
     async def do_createlocation(self, ctx, name, country=False):
         print(f"create location {name}")
@@ -1042,22 +1046,6 @@ class Smashtheque(commands.Cog):
         regex = match_url(bracket)
         if not regex or regex[3] not in ["challonge.com", "smash.gg"]:
             await yeet(ctx, "Veuillez envoyer l'url d'un tournois challonge ou smash.gg valide.")
-        elif regex[3] == "challonge.com":
-            #parsing the url for challonge
-            tournament_response = {
-                "provider": "challonge",
-                "url": regex[6]
-            }
-        elif regex[3] == "smash.gg":
-            if regex[5] != "/tournament":
-                await yeet(ctx, "Veuillez envoyer l'url d'un tournois smash.gg valide.")
-            tournament_url = regex[6]
-            if re.match(r"\/", tournament_url):
-                tournament_url = re.match(r".+?(?=\/)", tournament_url)
-            tournament_response = {
-                "provider": "smash.gg",
-                "url": tournament_url
-            }
         attachement = ctx.message.attachments
         if len(attachement) >= 2:
             await yeet(ctx, "Veuillez n'envoyer qu'une seule image.")
@@ -1065,15 +1053,32 @@ class Smashtheque(commands.Cog):
         #if no attachment in the original command, asking for it
         elif len(attachement) == 0:
             await self.complete_tournament_graph(ctx)
-            return
         
-        embed = discord.Embed(title=f"Vous êtes sur le point d'ajouter une édition au tournois {tournament}", description="Confirmer ?")
+        embed = discord.Embed(title=f"Vous êtes sur le point d'ajouter une édition au tournois {tournament['name']}", description="Confirmer ?")
         embed.set_author(
             name="Smashthèque",
             icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
         )
-        embed.set_footer("Vous pouvez ajouter l'url du tournois, la commande ainsi que le graph du tournois dans un seul")
-        raise NotImplementedError #endoint to upload tournament does not exist 
+        embed.set_footer(text="Vous pouvez ajouter l'url du tournois, la commande ainsi que le graph du tournois dans un seul")
+        if not await self.ask_confirmation(ctx, embed):
+            await ctx.send("Commande annulée.")
+            return
+        tournament_response = {
+            "tournament_event": {
+                "recurring_tournament_id": tournament["id"],
+                "bracket_url": bracket
+            }
+        }
+        if len(attachement) == 1:
+            tournament_response["graph_url"] = attachement[0].url
+        request_url = self.api_url("tournament_events")
+        async with self._session.post(request_url, json=tournament_response) as r:
+            if r.status == 201:
+                await self.show_confirmation(ctx, f"Une édition du tournois {tournament['name']} a été crée avec succès.")
+            elif r.status == 200:
+                await self.show_confirmation(ctx, f"Une édition du tournois {tournament['name']} a été modifié avec succès.")
+            
+                
 
     # -------------------------------------------------------------------------
     # COMMANDS
@@ -1298,4 +1303,8 @@ class Smashtheque(commands.Cog):
     @commands.command()
     async def tournoi(self, ctx, bracket: Optional[str]):
         """Cette commande permet aux TOs d'ajouter une édition de leur tournois dans la smashtheque"""
-        pass
+        try:
+            await self.do_addedition(ctx, bracket)
+        except:
+            rollbar.report_exc_info()
+            raise
