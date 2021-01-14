@@ -117,7 +117,6 @@ class Smashtheque(commands.Cog):
 
         else:
             rollbar_token = await self.bot.get_shared_api_tokens("smashtheque")
-            print(rollbar_token)
             rollbar_token = rollbar_token["token"]
             if 'environment' in rollbar_token:
                 rollbar_env = rollbar_token["environment"]
@@ -483,7 +482,7 @@ class Smashtheque(commands.Cog):
             if message.content.lower() in ["stop", "annuler", "cancel"]:
                 await ctx.send("commande annulée.")
                 return None
-            return message
+            return message.content
 
     async def complete_tournament_graph(self, ctx):
         """no idea how to check if the tournament has a graph"""
@@ -1043,7 +1042,6 @@ class Smashtheque(commands.Cog):
             if not bracket:
                 return
             
-        bracket = bracket.content
         """
         #parse the tournament link/id 
         regex = match_url(bracket)
