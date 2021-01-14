@@ -117,6 +117,7 @@ class Smashtheque(commands.Cog):
 
         else:
             rollbar_token = await self.bot.get_shared_api_tokens("smashtheque")
+            print(rollbar_token)
             rollbar_token = rollbar_token["token"]
             if 'environment' in rollbar_token:
                 rollbar_env = rollbar_token["environment"]
@@ -474,16 +475,15 @@ class Smashtheque(commands.Cog):
 
         await ctx.send(f"**Lien du bracket pour l'édition du tournoi {tournament['name']} ?** (envoyez stop pour annuler)")
         try:
-            content = await self.bot.wait_for('message', timeout=120.0, check=MessagePredicate.same_context(ctx))
-            print(content)
+            message = await self.bot.wait_for('message', timeout=120.0, check=MessagePredicate.same_context(ctx))
         except asyncio.TimeoutError:
             await ctx.send("commande annulée.")
             return None
         else:
-            if content.lower() in ["stop", "annuler", "cancel"]:
+            if message.content.lower() in ["stop", "annuler", "cancel"]:
                 await ctx.send("commande annulée.")
                 return None
-            return content
+            return message
 
     async def complete_tournament_graph(self, ctx):
         """no idea how to check if the tournament has a graph"""
@@ -1042,10 +1042,16 @@ class Smashtheque(commands.Cog):
             bracket = await self.complete_bracket_link(ctx, tournament)
             if not bracket:
                 return
+            
+        bracket = bracket.content
+        """
         #parse the tournament link/id 
         regex = match_url(bracket)
-        if not regex or regex[3] not in ["challonge.com", "smash.gg"]:
+
+        if not regex or regex[3] not in ["challonge.com", "smash.gg", "https://challonge.com", "https://smash.gg"]:
             await yeet(ctx, "Veuillez envoyer l'url d'un tournois challonge ou smash.gg valide.")
+            return
+        """
         attachement = ctx.message.attachments
         if len(attachement) >= 2:
             await yeet(ctx, "Veuillez n'envoyer qu'une seule image.")
