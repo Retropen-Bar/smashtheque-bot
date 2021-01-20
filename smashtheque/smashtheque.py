@@ -1074,7 +1074,7 @@ class Smashtheque(commands.Cog):
             }
         }
         if len(attachement) == 1:
-            tournament_response["graph_url"] = attachement[0].url
+            tournament_response["tournament_event"]["graph_url"] = attachement[0].url
         request_url = self.api_url("tournament_events")
         async with self._session.post(request_url, json=tournament_response) as r:
             if r.status == 201:
