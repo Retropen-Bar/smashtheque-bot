@@ -15,18 +15,11 @@ import math
 import rollbar
 import os
 import sys
-import unicodedata
-from collections.abc import Mapping
+
 from collections import UserDict
 from random import choice
 
-def normalize_str(s):
-    s1 = ''.join(
-        c for c in unicodedata.normalize('NFD', s)
-        if unicodedata.category(c) != 'Mn'
-    )
-    s2 = re.sub("[^a-zA-Z]+", "", s1)
-    return s2.lower()
+import misc
 
 async def yeet(ctx, erreur):
     """lever des erreurs"""
@@ -60,12 +53,6 @@ async def generic_error(ctx, error):
     await yeet(ctx, "T'as cassé le bot, GG. Tu peux contacter <@332894758076678144> ou <@608210202952466464> s'il te plaît ?")
     rollbar.report_exc_info(sys.exc_info(), error)
 
-def loop_dict(dict_to_use, value, parameter):
-    """trouver une entrée dans un dictionnaire"""
-    for sub in dict_to_use:
-        if sub[value] == parameter:
-            return sub
-
 def format_emoji(emoji_id):
     return f"<:placeholder:{emoji_id}>"
 
@@ -80,22 +67,6 @@ def format_team(team):
 
 def format_location(location):
     return location["name"].title()
-
-def is_discord_id(v):
-    return v.isdigit() and (len(str(v)) == 17 or len(str(v)) == 18)
-
-def is_emoji(v):
-    return re.search(r"<a?:(\w+):(\d+)>", v) != None
-
-def match_url(v):
-    return re.match(r"^((http[s]?|ftp):\/)?\/?([^:\/\s]+)((\/\w+)*\/)([\w\-\.]+[^#?\s]+)(.*)?(#[\w\-]+)?$", v)
-
-class Map(UserDict):
-    def __getattr__(self, attr):
-        val = self.data[attr]
-        if isinstance(val, Mapping):
-            return Map(val)
-        return val
 
 class Error(Exception):
     """Base class for other exceptions"""
@@ -136,15 +107,8 @@ class Smashtheque(commands.Cog):
             else:
                 bearer = await self.bot.get_shared_api_tokens("smashtheque")
                 bearer = bearer["bearer"]
-            headers = {
-                "Authorization": f"Bearer {bearer}",
-                "Content-Type": "application/json",
-            }
-            self._session = aiohttp.ClientSession(headers=headers)
-            self._characters_cache = {}
-            self._characters_names_cache = {}
-            self._locations_cache = {}
-            self._teams_cache = {}
+
+            self.api = ApiClient(apiBaseUrl=api_base_url, bearerToken=bearer)
         except:
             rollbar.report_exc_info()
             raise
@@ -155,70 +119,11 @@ class Smashtheque(commands.Cog):
     def cog_unload(self):
         asyncio.create_task(self._session.close())
 
-    def api_url(self, collection):
-        return f"{self.api_base_url}/api/v1/{collection}"
 
-    def is_character_name(self, v):
-        return normalize_str(v) in self._characters_names_cache
 
-    def is_character(self, v):
-        return is_emoji(v) or self.is_character_name(v)
 
-    async def fetch_characters(self):
-        print('fetch_characters')
-        async with self._session.get(self.api_url("characters")) as response:
-            characters = await response.json()
-            # puts values in cache before responding
-            for character in characters:
-                self._characters_cache[str(character["id"])] = character
-                self._characters_names_cache[normalize_str(character["name"])] = character["id"]
-            # respond
-            return characters
 
-    async def fetch_characters_if_needed(self):
-        print('fetch_characters_if_needed')
-        if len(self._characters_cache) < 1 or len(self._characters_names_cache) < 1:
-            await self.fetch_characters()
 
-    async def find_character_by_label(self, ctx, label):
-
-        # fill characters cache if empty
-        await self.fetch_characters_if_needed()
-
-        if is_emoji(label):
-            character = await self.find_character_by_emoji_tag(ctx, label)
-            return character
-
-        if self.is_character_name(label):
-            character = await self.find_character_by_name(ctx, label)
-            return character
-
-        await yeet(ctx, f"Perso {label} non reconnu")
-        return None
-
-    async def find_character_by_emoji_tag(self, ctx, emoji):
-        found = re.search(r"[0-9]+", emoji)
-        if found == None:
-            await yeet(
-                ctx,
-                f"Emoji {emoji} non reconnu : veuillez utiliser les émojis de personnages de la Smashthèque ou utiliser un nom de personnage."
-            )
-            return None
-        emoji_id = found.group()
-        for character_id in self._characters_cache:
-            character = self._characters_cache[str(character_id)]
-            if character["emoji"] == emoji_id:
-                return character
-        await yeet(
-            ctx,
-            f"Emoji {emoji} non reconnu : veuillez utiliser les émojis de personnages de la Smashthèque ou utiliser un nom de personnage."
-        )
-        return None
-
-    # this method is called when we are sure @name exists as a key of @_characters_names_cache
-    async def find_character_by_name(self, ctx, name):
-        character_id = self._characters_names_cache[normalize_str(name)]
-        return self._characters_cache[str(character_id)]
 
     async def find_team_by_short_name(self, short_name):
         request_url = "{0}?by_short_name_like={1}".format(self.api_url("teams"), short_name)
@@ -515,7 +420,7 @@ class Smashtheque(commands.Cog):
     async def do_addplayer(self, ctx, arg):
 
         # fill characters cache if empty
-        await self.fetch_characters_if_needed()
+        await self.api.initCache()
 
         # stages:
         # 0: pseudo
@@ -547,7 +452,7 @@ class Smashtheque(commands.Cog):
                 # at this stage, the next argument could be a name piece
                 # ... [name piece] [emoji] [emoji] [team] [location] [discord ID]
 
-                if self.is_character(argu):
+                if self.api.isCharacter(argu):
                     if len(response["name"]) > 0:
                         # we are actually done with the name, so go to stage 1
                         current_stage = 1
@@ -571,14 +476,15 @@ class Smashtheque(commands.Cog):
                 # at this stage, the next argument could be a character emoji
                 # ... [emoji] [emoji] [team] [location] [discord ID]
 
-                if not self.is_character(argu):
+                if not self.isCharacter(argu):
                     # we are actually done with the emojis, so go to stage 2
                     current_stage = 2
                     # do not 'continue' here because we stil want to process @argu
                 else:
                     # more emojis to parse
-                    character = await self.find_character_by_label(ctx, argu)
+                    character = await self.api.findCharacterByLabel(argu)
                     if character == None:
+                        await yeet(ctx, f"Perso {argu} non reconnu")
                         return
                     response["character_ids"].append(character["id"])
                     # there could still be emojis to parse,
@@ -871,7 +777,7 @@ class Smashtheque(commands.Cog):
     async def do_listavailablecharacters(self, ctx):
 
         # fill characters cache if empty
-        await self.fetch_characters_if_needed()
+        await self.api.initCache()
 
         lines = []
         for character_id in self._characters_cache:
@@ -901,7 +807,7 @@ class Smashtheque(commands.Cog):
     async def do_addcharacters(self, ctx, discord_id, labels):
 
         # fill characters cache if empty
-        await self.fetch_characters_if_needed()
+        await self.api.initCache()
 
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
@@ -909,8 +815,9 @@ class Smashtheque(commands.Cog):
             return
         character_ids = player["character_ids"]
         for label in labels.split():
-            character = await self.find_character_by_label(ctx, label)
+            character = await self.api.findCharacterByLabel(label)
             if character == None:
+                await yeet(ctx, f"Perso {label} non reconnu")
                 return
             character_id = character["id"]
             if character_id in character_ids:
@@ -926,7 +833,7 @@ class Smashtheque(commands.Cog):
     async def do_removecharacters(self, ctx, discord_id, labels):
 
         # fill characters cache if empty
-        await self.fetch_characters_if_needed()
+        await self.api.initCache()
 
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
@@ -934,8 +841,9 @@ class Smashtheque(commands.Cog):
             return
         character_ids = player["character_ids"]
         for label in labels.split():
-            char = await self.find_character_by_label(ctx, label)
+            char = await self.api.findCharacterByLabel(label)
             if char == None:
+                await yeet(ctx, f"Perso {label} non reconnu")
                 return
             char_id = char["id"]
             if char_id in character_ids:
@@ -948,7 +856,7 @@ class Smashtheque(commands.Cog):
     async def do_replacecharacters(self, ctx, discord_id, labels):
 
         # fill characters cache if empty
-        await self.fetch_characters_if_needed()
+        await self.api.initCache()
 
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
@@ -956,8 +864,9 @@ class Smashtheque(commands.Cog):
             return
         character_ids = []
         for label in labels.split():
-            char = await self.find_character_by_label(ctx, label)
+            char = await self.api.findCharacterByLabel(label)
             if char == None:
+                await yeet(ctx, f"Perso {label} non reconnu")
                 return
             character_ids.append(char["id"])
         await self.update_player(ctx, player["id"], {"character_ids": character_ids})
