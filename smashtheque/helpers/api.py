@@ -1,6 +1,8 @@
 import aiohttp
+import asyncio
+import re
 
-import misc
+from .misc import *
 
 class ApiClient:
 
@@ -63,7 +65,7 @@ class ApiClient:
         return None
       return character
 
-    if self.is_character_name(label):
+    if self.isCharacterName(label):
       character = await self.findCharacterByName(label)
       if character == None:
         return None
@@ -78,8 +80,130 @@ class ApiClient:
     return is_emoji(v) or self.isCharacterName(v)
 
   # ---------------------------------------------------------------------------
+  # TEAM
+  # ---------------------------------------------------------------------------
+
+  async def findTeamByShortName(self, short_name):
+    request_url = "{0}?by_short_name_like={1}".format(self.apiUrl("teams"), short_name)
+    async with self._session.get(request_url) as response:
+      teams = await response.json()
+      if teams != []:
+        # puts values in cache before responding
+        for team in teams:
+          self._teams_cache[str(team["id"])] = team
+        return teams[0]
+      else:
+        return None
+
+  async def findTeamById(self, team_id):
+    request_url = "{api_url}/{team_id}".format(api_url=self.apiUrl("teams"), team_id=team_id)
+    async with self._session.get(request_url) as response:
+      team = await response.json()
+      return team #or team[0]
+
+  async def updateTeam(self, team_id, data):
+    payload = {"team": data}
+    request_url = "{0}/{1}".format(self.apiUrl("teams"), team_id)
+    async with self._session.patch(request_url, json=payload) as response:
+      return response
+
+  # ---------------------------------------------------------------------------
+  # TOURNAMENT
+  # ---------------------------------------------------------------------------
+
+  async def findTournamentById(self, tournament_id):
+    request_url = f"{self.apiUrl('recurring_tournaments')}/{tournament_id}"
+    async with self._session.get(request_url) as response:
+      tournament = await response.json()
+      return tournament
+
+  async def createTournamentEvent(self, data):
+    payload = {"tournament_event": data}
+    request_url = self.api_url("tournament_events")
+    async with self._session.post(request_url, json=payload) as r:
+      return r
+
+  # ---------------------------------------------------------------------------
+  # LOCATION
+  # ---------------------------------------------------------------------------
+
+  async def findLocationByName(self, name):
+    request_url = "{0}?by_name_like={1}".format(self.apiUrl("locations"), name)
+    async with self._session.get(request_url) as response:
+      locations = await response.json()
+      if locations != []:
+        # puts values in cache before responding
+        for location in locations:
+          self._locations_cache[str(location["id"])] = location
+        return locations[0]
+      else:
+        return None
+
+  async def createLocation(self, name, country=False):
+    payload = {"name": name}
+    if country:
+      payload["type"] = "Locations::Country"
+    async with self._session.post(self.apiUrl("locations"), json=payload) as r:
+      return r
+
+  # ---------------------------------------------------------------------------
+  # PLAYER
+  # ---------------------------------------------------------------------------
+
+  async def findPlayerById(self, player_id):
+    request_url = "{0}/{1}".format(self.apiUrl("players"), player_id)
+    async with self._session.get(request_url) as response:
+      player = await response.json()
+      return player
+
+  async def findPlayerByIds(self, player_ids):
+    players = []
+    for player_id in player_ids:
+      player = await self.findPlayerById(player_id)
+      players.append(player)
+    return players
+
+  async def findPlayerByDiscordId(self, discord_id):
+    request_url = "{0}?by_discord_id={1}".format(self.apiUrl("players"), discord_id)
+    async with self._session.get(request_url) as response:
+      players = await response.json()
+      if len(players) > 0:
+        return players[0]
+      return None
+
+  async def findPlayersByNameLike(self, name):
+    request_url = "{0}?by_name_like={1}".format(self.apiUrl("players"), name)
+    async with self._session.get(request_url) as response:
+      players = await response.json()
+      return players
+
+  async def createPlayer(self, player):
+    payload = {"player": player}
+    async with self._session.post(self.apiUrl("players"), json=payload) as r:
+      return r
+
+  async def updatePlayer(self, player_id, data):
+    payload = {"player": data}
+    player_url = "{0}/{1}".format(self.apiUrl("players"), player_id)
+    async with self._session.patch(player_url, json=payload) as r:
+      return r
+
+  # ---------------------------------------------------------------------------
+  # DISCORD USER
+  # ---------------------------------------------------------------------------
+
+  async def findDiscordUserByDiscordId(self, discord_id):
+    request_url = "{api_url}/{discord_id}".format(api_url=self.apiUrl("discord_users"), discord_id=discord_id)
+    async with self._session.get(request_url) as response:
+      player = await response.json()
+      return player if player != [] else None
+
+  # ---------------------------------------------------------------------------
   # GENERAL
   # ---------------------------------------------------------------------------
 
   async def initCache(self):
     await self.fetchCharactersIfNeeded()
+
+  def unload(self):
+    asyncio.create_task(self._session.close())
