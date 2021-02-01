@@ -1026,24 +1026,30 @@ class Smashtheque(commands.Cog):
         elif player["administrated_recurring_tournaments"] == []:
             await yeet(ctx, "Vous n'êtes l'admin d'aucun tournoi.")
             return
-        tournament = await self.find_tournament_by_id(player["administrated_recurring_tournaments"][0]["id"])
-        #selecting the right tournament 
 
+        #selecting the right tournament
         if len(player["administrated_recurring_tournaments"]) > 1:
-            embed = discord.Embed(title="Vous âtes administrateur de plusieurs tournois. ", description=f"De quelle tournois faut-il ajouter une édition ?")
-            for team_entry in player["administrated_recurring_tournaments"]:
-                embed.add_field(name=team_entry["short_name"], value=team_entry["name"])
-            choice_result = await self.ask_choice(ctx, embed, len(player["administrated_recurring_tournaments"]))
-            tournament = await self.find_tournament_by_id(player["administrated_recurring_tournaments"][choice_result]["id"])
+            embed = discord.Embed(title="Vous êtes administrateur de plusieurs tournois.", description=f"Quel est le tournoi concerné ?")
+            idx = 0
+            for tournament_entry in player["administrated_recurring_tournaments"]:
+                embed.add_field(name=(1+idx), value=tournament_entry["name"], inline=False)
+                idx += 1
+            choice = await self.ask_choice(ctx, embed, len(player["administrated_recurring_tournaments"]))
+            if choice == None:
+                return
+            tournament = await self.find_tournament_by_id(player["administrated_recurring_tournaments"][choice]["id"])
+
+        else:
+            tournament = await self.find_tournament_by_id(player["administrated_recurring_tournaments"][0]["id"])
 
         #completing the bracket link
         if not bracket:
             bracket = await self.complete_bracket_link(ctx, tournament)
             if not bracket:
                 return
-            
+
         """
-        #parse the tournament link/id 
+        #parse the tournament link/id
         regex = match_url(bracket)
 
         if not regex or regex[3] not in ["challonge.com", "smash.gg", "https://challonge.com", "https://smash.gg"]:
@@ -1057,7 +1063,7 @@ class Smashtheque(commands.Cog):
         #if no attachment in the original command, asking for it
         elif len(attachement) == 0:
             await self.complete_tournament_graph(ctx)
-        
+
         embed = discord.Embed(title=f"Vous êtes sur le point d'ajouter une édition au tournois {tournament['name']}", description="Confirmer ?")
         embed.set_author(
             name="Smashthèque",
@@ -1081,8 +1087,8 @@ class Smashtheque(commands.Cog):
                 await self.show_confirmation(ctx, f"Une édition du tournois {tournament['name']} a été crée avec succès.")
             elif r.status == 200:
                 await self.show_confirmation(ctx, f"Une édition du tournois {tournament['name']} a été modifié avec succès.")
-            
-                
+
+
 
     # -------------------------------------------------------------------------
     # COMMANDS
