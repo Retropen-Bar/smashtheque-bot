@@ -80,36 +80,33 @@ class Smashtheque:
 
     async def create_player(self, ctx, player):
         print(f"create player {player}")
-        r = await self.api.createPlayer(player)
-        if r.status == 201:
+        result, errors = await self.api.createPlayer(player)
+        if result:
             # player creation wen fine
             player_name = player["name"]
             await show_confirmation(ctx, f"Le joueur {player_name} a été ajouté à la Smashthèque et est en attente de validation.")
             return
 
-        if r.status == 422:
-            result = await r.json()
-            erreur = Map(result)
-            print(f"errors: {erreur.errors}")
-            if "name" in erreur.errors and erreur.errors["name"] == "already_known":
-                alts = await self.api.findPlayerByIds(erreur.errors["existing_ids"])
-                embed = discord.Embed(
-                    title="Un ou plusieurs joueurs possèdent le même pseudo que le joueur que vous souhaitez ajouter.",
-                    colour=discord.Colour.blue()
-                )
-                embed.set_footer(text="Réagissez avec ✅ pour confirmer et créer un nouveau joueur, ou\nréagissez avec ❎ pour annuler.")
-                self.embed_players(embed, alts)
-                doit = await ask_confirmation(ctx, embed)
-                if doit:
-                    player["name_confirmation"] = True
-                    await self.create_player(ctx, player)
-            elif "discord_user" in erreur.errors and erreur.errors["discord_user"] == ["already_taken"]:
-                await yeet(ctx, "Ce compte Discord est déjà relié à un autre joueur dans la Smashthèque.")
-                return
-            else:
-                await generic_error(ctx)
-                rollbar.report_exc_info(sys.exc_info(), erreur)
-                return
+        print(f"errors: {errors}")
+        if "name" in errors and errors["name"] == "already_known":
+            alts = await self.api.findPlayerByIds(errors["existing_ids"])
+            embed = discord.Embed(
+                title="Un ou plusieurs joueurs possèdent le même pseudo que le joueur que vous souhaitez ajouter.",
+                colour=discord.Colour.blue()
+            )
+            embed.set_footer(text="Réagissez avec ✅ pour confirmer et créer un nouveau joueur, ou\nréagissez avec ❎ pour annuler.")
+            self.embed_players(embed, alts)
+            doit = await ask_confirmation(ctx, embed)
+            if doit:
+                player["name_confirmation"] = True
+                await self.create_player(ctx, player)
+        elif "discord_user" in errors and errors["discord_user"] == ["already_taken"]:
+            await yeet(ctx, "Ce compte Discord est déjà relié à un autre joueur dans la Smashthèque.")
+            return
+        else:
+            await generic_error(ctx)
+            rollbar.report_exc_info(sys.exc_info(), erreur)
+            return
 
     async def update_player(self, ctx, player_id, data):
         print(f"update player {player_id} with {data}")
