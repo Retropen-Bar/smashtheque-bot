@@ -110,36 +110,35 @@ class Smashtheque:
 
     async def update_player(self, ctx, player_id, data):
         print(f"update player {player_id} with {data}")
-        r = await self.api.updatePlayer(player_id, data)
-        if r.status == 200:
+        result, details = await self.api.updatePlayer(player_id, data)
+        if result:
+            player = details
             embed = discord.Embed(title="Joueur mis à jour :")
-            self.embed_player(embed, await r.json())
+            self.embed_player(embed, details)
             await ctx.send(embed=embed)
             return
 
-        if r.status == 422:
-            result = await r.json()
-            erreur = Map(result)
-            print(f"errors: {erreur.errors}")
-            if "name" in erreur.errors and erreur.errors["name"] == "already_known":
-                alts = await self.api.findPlayerByIds(erreur.errors["existing_ids"])
-                embed = discord.Embed(
-                    title="Un ou plusieurs autres joueurs utilisent ce pseudo.",
-                    colour=discord.Colour.blue()
-                )
-                embed.set_footer(text="Réagissez avec ✅ pour confirmer et mettre à jour, ou\nréagissez avec ❎ pour annuler.")
-                self.embed_players(embed, alts)
-                doit = await ask_confirmation(ctx, embed)
-                if doit:
-                    data["name_confirmation"] = True
-                    await self.update_player(ctx, player_id, data)
-            elif "discord_user" in erreur.errors and erreur.errors["discord_user"] == ["already_taken"]:
-                await yeet(ctx, "Ce compte Discord est déjà relié à un autre joueur dans la Smashthèque.")
-                return
-            else:
-                await generic_error(ctx)
-                rollbar.report_exc_info(sys.exc_info(), erreur)
-                return
+        errors = details
+        print(f"errors: {errors}")
+        if "name" in errors and errors["name"] == "already_known":
+            alts = await self.api.findPlayerByIds(errors["existing_ids"])
+            embed = discord.Embed(
+                title="Un ou plusieurs autres joueurs utilisent ce pseudo.",
+                colour=discord.Colour.blue()
+            )
+            embed.set_footer(text="Réagissez avec ✅ pour confirmer et mettre à jour, ou\nréagissez avec ❎ pour annuler.")
+            self.embed_players(embed, alts)
+            doit = await ask_confirmation(ctx, embed)
+            if doit:
+                data["name_confirmation"] = True
+                await self.update_player(ctx, player_id, data)
+        elif "discord_user" in errors and errors["discord_user"] == ["already_taken"]:
+            await yeet(ctx, "Ce compte Discord est déjà relié à un autre joueur dans la Smashthèque.")
+            return
+        else:
+            await generic_error(ctx)
+            rollbar.report_exc_info(sys.exc_info(), erreur)
+            return
 
     async def complete_bracket_link(self, ctx, tournament):
 
@@ -168,24 +167,20 @@ class Smashtheque:
 
     async def do_createlocation(self, ctx, name, country=False):
         print(f"create location {name}")
-        r = await self.api.createLocation(name, country=country)
-        if r.status == 201:
+        result, errors = await self.api.createLocation(name, country=country)
+        if result:
             # location creation went fine
             await show_confirmation(ctx, f"La localisation {name} a été ajoutée à la base de données.")
             return
 
-        if r.status == 422:
-            result = await r.json()
-            erreur = Map(result)
-            print(erreur.errors["name"])
-            if erreur.errors["name"] == ["not_unique"]:
-                await yeet(ctx, "Cette localisation existe déjà dans la Smashthèque.")
-                return
-
-        # something went wrong but we don't know what
-        await generic_error(ctx)
-        rollbar.report_exc_info(sys.exc_info(), r)
-        return
+        if errors["name"] == ["not_unique"]:
+            await yeet(ctx, "Cette localisation existe déjà dans la Smashthèque.")
+            return
+        else:
+            # something went wrong but we don't know what
+            await generic_error(ctx)
+            rollbar.report_exc_info(sys.exc_info(), r)
+            return
 
     async def do_addplayer(self, ctx, arg):
 
@@ -757,8 +752,13 @@ class Smashtheque:
         }
         if len(attachement) == 1:
             tournament_data["graph_url"] = attachement[0].url
-        r = await self.api.createTournamentEvent(tournament_data)
-        if r.status == 201:
-            await show_confirmation(ctx, f"Une édition du tournois {tournament['name']} a été crée avec succès.")
-        elif r.status == 200:
-            await show_confirmation(ctx, f"Une édition du tournois {tournament['name']} a été modifié avec succès.")
+        result, details = await self.api.createTournamentEvent(tournament_data)
+        if result:
+            if details == 'created':
+                await show_confirmation(ctx, f"Une édition du tournois {tournament['name']} a été crée avec succès.")
+            else:
+                await show_confirmation(ctx, f"Une édition du tournois {tournament['name']} a été modifié avec succès.")
+        else:
+            await generic_error(ctx)
+            rollbar.report_exc_info(sys.exc_info(), details)
+            return

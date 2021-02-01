@@ -121,7 +121,15 @@ class ApiClient:
     payload = {"tournament_event": data}
     request_url = self.api_url("tournament_events")
     async with self._session.post(request_url, json=payload) as r:
-      return r
+      if r.status == 201:
+        return True, 'created'
+      if r.status == 200:
+        return True, 'updated'
+      if r.status == 422:
+        result = await r.json()
+        err = Map(result)
+        return False, err.errors
+      return False, {}
 
   # ---------------------------------------------------------------------------
   # LOCATION
@@ -144,7 +152,14 @@ class ApiClient:
     if country:
       payload["type"] = "Locations::Country"
     async with self._session.post(self.apiUrl("locations"), json=payload) as r:
-      return r
+      if r.status == 201:
+        # location creation went fine
+        return True, {}
+      if r.status == 422:
+        result = await r.json()
+        err = Map(result)
+        return False, err.errors
+      return False, {}
 
   # ---------------------------------------------------------------------------
   # PLAYER
@@ -192,8 +207,14 @@ class ApiClient:
     payload = {"player": data}
     player_url = "{0}/{1}".format(self.apiUrl("players"), player_id)
     async with self._session.patch(player_url, json=payload) as r:
-      return r
-
+      if r.status == 200:
+        result = await r.json()
+        return True, result
+      if r.status == 422:
+        result = await r.json()
+        err = Map(result)
+        return False, err.errors
+      return False, {}
 
   # ---------------------------------------------------------------------------
   # DISCORD USER
