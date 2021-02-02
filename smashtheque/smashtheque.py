@@ -680,15 +680,13 @@ class Smashtheque:
         team_data = {
             f"{object_name}_url": ctx.message.attachments[0].url
         }
-        response = await self.api.updateTeam(team['id'], team_data)
-        if response.status != 200:
-            await generic_error(ctx)
-            rollbar.report_exc_info(sys.exc_info(), f"error in command majlogo : status code {response.status}, response : {response}")
-            print(response)
-            print(response.text)
-            return
-        else:
+        result, details = await self.api.updateTeam(team['id'], team_data)
+        if result:
             await show_confirmation(ctx, f"Le {object_name} de la team {team['name']} a été mis à jour avec succès.")
+        else:
+            await generic_error(ctx)
+            rollbar.report_exc_info(sys.exc_info(), details)
+            return
 
     async def do_addedition(self, ctx, bracket):
         #generic checks

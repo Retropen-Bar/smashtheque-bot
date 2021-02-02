@@ -115,26 +115,44 @@ class ApiClient:
   async def findTeamByShortName(self, short_name):
     request_url = "{0}?by_short_name_like={1}".format(self.apiUrl("teams"), short_name)
     async with self._session.get(request_url) as response:
-      teams = await response.json()
-      if teams != []:
-        # puts values in cache before responding
-        for team in teams:
-          self._teams_cache[str(team["id"])] = team
-        return teams[0]
-      else:
-        return None
+      # API success
+      if response.status == 200:
+        teams = await response.json()
+        if teams != []:
+          # puts values in cache before responding
+          for team in teams:
+            self._teams_cache[str(team["id"])] = team
+          # respond
+          return True, teams[0]
+        else:
+          return True, None
+      # API failure
+      return False, {}
 
   async def findTeamById(self, team_id):
     request_url = "{api_url}/{team_id}".format(api_url=self.apiUrl("teams"), team_id=team_id)
     async with self._session.get(request_url) as response:
-      team = await response.json()
-      return team #or team[0]
+      # API success
+      if response.status == 200:
+        team = await response.json()
+        return True, team
+      # API failure
+      return False, {}
 
   async def updateTeam(self, team_id, data):
     payload = {"team": data}
     request_url = "{0}/{1}".format(self.apiUrl("teams"), team_id)
     async with self._session.patch(request_url, json=payload) as response:
-      return response
+      # API success
+      if response.status == 200:
+        team = await response.json()
+        return True, team
+      # API failures
+      if response.status == 422:
+        result = await response.json()
+        err = Map(result)
+        return False, err.errors
+      return False, {}
 
   # ---------------------------------------------------------------------------
   # TOURNAMENT
@@ -143,8 +161,12 @@ class ApiClient:
   async def findTournamentById(self, tournament_id):
     request_url = f"{self.apiUrl('recurring_tournaments')}/{tournament_id}"
     async with self._session.get(request_url) as response:
-      tournament = await response.json()
-      return tournament
+      # API success
+      if response.status == 200:
+        tournament = await response.json()
+        return True, tournament
+      # API failures
+      return False, {}
 
   async def createTournamentEvent(self, data):
     payload = {"tournament_event": data}

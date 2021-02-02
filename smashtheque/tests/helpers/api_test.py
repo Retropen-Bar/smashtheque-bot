@@ -19,9 +19,29 @@ bowser = {
 }
 characters = [yoshi, bowser]
 
+rb = {
+  "id": 7,
+  "short_name": "R-B",
+  "name": "Rétropen-Bar"
+}
+cew = {
+  "id": 9,
+  "short_name": "CEW",
+  "name": "Caramel Ecchi Waysen"
+}
+teams = [rb, cew]
+
 async def respondWithCharacters(request):
   return web.Response(body=json.dumps(characters), content_type="application/json")
 mockCharacters = Mock(side_effect=respondWithCharacters)
+
+async def respondWithTeams(request):
+  return web.Response(body=json.dumps(teams), content_type="application/json")
+mockTeams = Mock(side_effect=respondWithTeams)
+
+async def respondWithTeam(request):
+  return web.Response(body=json.dumps(rb), content_type="application/json")
+mockTeam = Mock(side_effect=respondWithTeam)
 
 async def mock500(request):
   return web.Response(status=500)
@@ -38,6 +58,10 @@ async def mock500(request):
 async def test_apiUrl(test_apiBaseUrl, test_path, expected):
   apiClient = ApiClient(apiBaseUrl=test_apiBaseUrl, bearerToken=None)
   assert apiClient.apiUrl(test_path) == expected
+
+# ---------------------------------------------------------------------------
+# CHARACTER
+# ---------------------------------------------------------------------------
 
 async def test_fetchCharacters_success(aiohttp_client):
   apiClient = ApiClient(apiBaseUrl=None, bearerToken=None)
@@ -182,37 +206,51 @@ async def test_isCharacter(aiohttp_client, label, expected):
   result = await apiClient.isCharacter(label)
   assert result == expected
 
-#   # ---------------------------------------------------------------------------
-#   # TEAM
-#   # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# TEAM
+# ---------------------------------------------------------------------------
 
-#   async def findTeamByShortName(self, short_name):
-#     request_url = "{0}?by_short_name_like={1}".format(self.apiUrl("teams"), short_name)
-#     async with self._session.get(request_url) as response:
-#       teams = await response.json()
-#       if teams != []:
-#         # puts values in cache before responding
-#         for team in teams:
-#           self._teams_cache[str(team["id"])] = team
-#         return teams[0]
-#       else:
-#         return None
+async def test_findTeamByShortName(aiohttp_client):
+  apiClient = ApiClient(apiBaseUrl=None, bearerToken=None)
+  # replace aiohttp ClientSession with a mock
+  app = web.Application()
+  app.router.add_get('/api/v1/teams', mockTeams)
+  apiClient._session = await aiohttp_client(app)
+  # test
+  initCallCount = mockTeams.call_count
+  result = await apiClient.findTeamByShortName('toto')
+  assert mockTeams.call_count == initCallCount + 1
+  assert len(apiClient._teams_cache) == 2
+  assert apiClient._teams_cache["7"]["name"] == "Rétropen-Bar"
+  assert result["id"] == 7
 
-#   async def findTeamById(self, team_id):
-#     request_url = "{api_url}/{team_id}".format(api_url=self.apiUrl("teams"), team_id=team_id)
-#     async with self._session.get(request_url) as response:
-#       team = await response.json()
-#       return team #or team[0]
+async def test_findTeamById(aiohttp_client):
+  apiClient = ApiClient(apiBaseUrl=None, bearerToken=None)
+  # replace aiohttp ClientSession with a mock
+  app = web.Application()
+  app.router.add_get('/api/v1/teams/7', mockTeam)
+  apiClient._session = await aiohttp_client(app)
+  # test
+  initCallCount = mockTeam.call_count
+  result = await apiClient.findTeamById(7)
+  assert mockTeam.call_count == initCallCount + 1
+  assert result["short_name"] == "R-B"
 
-#   async def updateTeam(self, team_id, data):
-#     payload = {"team": data}
-#     request_url = "{0}/{1}".format(self.apiUrl("teams"), team_id)
-#     async with self._session.patch(request_url, json=payload) as response:
-#       return response
+async def test_updateTeam(aiohttp_client):
+  apiClient = ApiClient(apiBaseUrl=None, bearerToken=None)
+  # replace aiohttp ClientSession with a mock
+  app = web.Application()
+  app.router.add_patch('/api/v1/teams/7', mockTeam)
+  apiClient._session = await aiohttp_client(app)
+  # test
+  initCallCount = mockTeam.call_count
+  result, details = await apiClient.updateTeam(7, {})
+  assert mockTeam.call_count == initCallCount + 1
+  assert result
 
-#   # ---------------------------------------------------------------------------
-#   # TOURNAMENT
-#   # ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# TOURNAMENT
+# -----------------------------------------------------------------------------
 
 #   async def findTournamentById(self, tournament_id):
 #     request_url = f"{self.apiUrl('recurring_tournaments')}/{tournament_id}"
