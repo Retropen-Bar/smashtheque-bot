@@ -218,11 +218,12 @@ async def test_findTeamByShortName(aiohttp_client):
   apiClient._session = await aiohttp_client(app)
   # test
   initCallCount = mockTeams.call_count
-  result = await apiClient.findTeamByShortName('toto')
+  result, details = await apiClient.findTeamByShortName('toto')
   assert mockTeams.call_count == initCallCount + 1
   assert len(apiClient._teams_cache) == 2
   assert apiClient._teams_cache["7"]["name"] == "Rétropen-Bar"
-  assert result["id"] == 7
+  assert result
+  assert details["id"] == 7
 
 async def test_findTeamById(aiohttp_client):
   apiClient = ApiClient(apiBaseUrl=None, bearerToken=None)
@@ -232,9 +233,10 @@ async def test_findTeamById(aiohttp_client):
   apiClient._session = await aiohttp_client(app)
   # test
   initCallCount = mockTeam.call_count
-  result = await apiClient.findTeamById(7)
+  result, details = await apiClient.findTeamById(7)
   assert mockTeam.call_count == initCallCount + 1
-  assert result["short_name"] == "R-B"
+  assert result
+  assert details["short_name"] == "R-B"
 
 async def test_updateTeam(aiohttp_client):
   apiClient = ApiClient(apiBaseUrl=None, bearerToken=None)
