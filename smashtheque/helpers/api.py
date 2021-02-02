@@ -7,7 +7,7 @@ from .misc import *
 class ApiClient:
 
   def __init__(self, apiBaseUrl, bearerToken):
-    self.apiBaseUrl = apiBaseUrl
+    self.apiBaseUrl = "" if apiBaseUrl is None else apiBaseUrl
     headers = {
       "Authorization": f"Bearer {bearerToken}",
       "Content-Type": "application/json",
@@ -19,7 +19,8 @@ class ApiClient:
     self._teams_cache = {}
 
   def apiUrl(self, collection):
-    return f"{self.apiBaseUrl}/api/v1/{collection}"
+    path = "" if collection is None else collection
+    return f"{self.apiBaseUrl}/api/v1/{path}"
 
   # ---------------------------------------------------------------------------
   # CHARACTERS
@@ -27,57 +28,85 @@ class ApiClient:
 
   async def fetchCharacters(self):
     async with self._session.get(self.apiUrl("characters")) as response:
-      characters = await response.json()
-      # puts values in cache before responding
-      for character in characters:
-        self._characters_cache[str(character["id"])] = character
-        self._characters_names_cache[normalize_str(character["name"])] = character["id"]
-      # respond
-      return characters
+      # API success
+      if response.status == 200:
+        characters = await response.json()
+        # puts values in cache before responding
+        for character in characters:
+          self._characters_cache[str(character["id"])] = character
+          self._characters_names_cache[normalize_str(character["name"])] = character["id"]
+        # respond
+        return True, characters
+
+      # API failure
+      return False, []
 
   async def fetchCharactersIfNeeded(self):
     if len(self._characters_cache) < 1 or len(self._characters_names_cache) < 1:
       await self.fetchCharacters()
 
   async def findCharacterByEmojiTag(self, emoji):
+    print(f"findCharacterByEmojiTag({emoji})")
+    if not emoji:
+      return None
     found = re.search(r"[0-9]+", emoji)
     if found == None:
       return None
     emoji_id = found.group()
+
+    # fill characters cache if empty
+    await self.fetchCharactersIfNeeded()
+
     for character_id in self._characters_cache:
       character = self._characters_cache[str(character_id)]
       if character["emoji"] == emoji_id:
         return character
     return None
 
-  # this method is called when we are sure @name exists as a key of @_characters_names_cache
   async def findCharacterByName(self, name):
-    character_id = self._characters_names_cache[normalize_str(name)]
-    return self._characters_cache[str(character_id)]
-
-  async def findCharacterByLabel(self, label):
+    print(f"findCharacterByName({name})")
+    if not name:
+      return None
     # fill characters cache if empty
     await self.fetchCharactersIfNeeded()
+    # find
+    normalizedName = normalize_str(name)
+    if normalizedName in self._characters_names_cache:
+      character_id = self._characters_names_cache[normalizedName]
+      return self._characters_cache.get(str(character_id), None)
+    # nothing found
+    return None
 
+  async def findCharacterByLabel(self, label):
+    if not label:
+      return None
+    # fill characters cache if empty
+    await self.fetchCharactersIfNeeded()
+    # option 1: find by emoji
     if is_emoji(label):
       character = await self.findCharacterByEmojiTag(label)
       if character == None:
         return None
       return character
-
-    if self.isCharacterName(label):
-      character = await self.findCharacterByName(label)
-      if character == None:
-        return None
-      return character
-
+    # option 2: find by name
+    character = await self.findCharacterByName(label)
+    if character == None:
+      return None
+    return character
+    # nothing found
     return None
 
-  def isCharacterName(self, v):
+  async def isCharacterName(self, v):
+    if not v:
+      return False
+    # fill characters cache if empty
+    await self.fetchCharactersIfNeeded()
+    # check
     return normalize_str(v) in self._characters_names_cache
 
-  def isCharacter(self, v):
-    return is_emoji(v) or self.isCharacterName(v)
+  async def isCharacter(self, v):
+    found = await self.findCharacterByLabel(v)
+    return found != None
 
   # ---------------------------------------------------------------------------
   # TEAM

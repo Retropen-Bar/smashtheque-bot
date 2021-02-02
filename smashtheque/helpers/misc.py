@@ -8,6 +8,8 @@ def is_emoji(v):
   return re.search(r"<a?:(\w+):(\d+)>", v) != None
 
 def normalize_str(s):
+  if not s:
+    return s
   s1 = ''.join(
     c for c in unicodedata.normalize('NFD', s)
     if unicodedata.category(c) != 'Mn'

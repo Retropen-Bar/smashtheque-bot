@@ -25,14 +25,8 @@ def test_is_emoji(test_input, expected):
   assert is_emoji(test_input) == expected
 
 @pytest.mark.parametrize("test_input,expected", [
-  ("hello world", "helloworld"),
-  ("àâäÀÂÄéèêëÉÈÊËìîïÌÎÏòôöÒÔÖùûüÙÛÜÿŸ", "aaaaaaeeeeeeeeiiiiiioooooouuuuuuyy"),
-  ("<>$€,!:", "")
-])
-def test_normalize_str(test_input, expected):
-  assert normalize_str(test_input) == expected
-
-@pytest.mark.parametrize("test_input,expected", [
+  (None, None),
+  ("", ""),
   ("hello world", "helloworld"),
   ("àâäÀÂÄéèêëÉÈÊËìîïÌÎÏòôöÒÔÖùûüÙÛÜÿŸ", "aaaaaaeeeeeeeeiiiiiioooooouuuuuuyy"),
   ("<>$€,!:", "")

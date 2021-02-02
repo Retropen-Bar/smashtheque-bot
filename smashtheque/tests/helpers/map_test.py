@@ -2,13 +2,6 @@ import pytest
 
 from smashtheque.helpers.map import *
 
-# class Map(UserDict):
-#   def __getattr__(self, attr):
-#     val = self.data[attr]
-#     if isinstance(val, Mapping):
-#         return Map(val)
-#     return val
-
 @pytest.mark.parametrize("test_object,test_expression", [
   (None, "True"),
   ({"a": True}, "m.a"),
