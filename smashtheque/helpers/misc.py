@@ -1,5 +1,3 @@
-from collections import UserDict
-from collections.abc import Mapping
 import re
 import unicodedata
 
@@ -9,9 +7,6 @@ def is_discord_id(v):
 def is_emoji(v):
   return re.search(r"<a?:(\w+):(\d+)>", v) != None
 
-def match_url(v):
-  return re.match(r"^((http[s]?|ftp):\/)?\/?([^:\/\s]+)((\/\w+)*\/)([\w\-\.]+[^#?\s]+)(.*)?(#[\w\-]+)?$", v)
-
 def normalize_str(s):
   s1 = ''.join(
     c for c in unicodedata.normalize('NFD', s)
@@ -20,24 +15,27 @@ def normalize_str(s):
   s2 = re.sub("[^a-zA-Z]+", "", s1)
   return s2.lower()
 
-class Map(UserDict):
-  def __getattr__(self, attr):
-    val = self.data[attr]
-    if isinstance(val, Mapping):
-        return Map(val)
-    return val
-
 def format_emoji(emoji_id):
+  if not emoji_id:
+    return ""
   return f"<:placeholder:{emoji_id}>"
 
 def format_character(character):
+  if not character:
+    return ""
   return format_emoji(character["emoji"])
 
 def format_discord_user(discord_id):
+  if not discord_id:
+    return ""
   return f"<@{discord_id}>"
 
 def format_team(team):
+  if not team:
+    return ""
   return "{0} ({1})".format(team["name"], team["short_name"])
 
 def format_location(location):
+  if not location:
+    return ""
   return location["name"].title()

@@ -721,14 +721,6 @@ class Smashtheque:
             if not bracket:
                 return
 
-        """
-        #parse the tournament link/id
-        regex = match_url(bracket)
-
-        if not regex or regex[3] not in ["challonge.com", "smash.gg", "https://challonge.com", "https://smash.gg"]:
-            await yeet(ctx, "Veuillez envoyer l'url d'un tournois challonge ou smash.gg valide.")
-            return
-        """
         attachement = ctx.message.attachments
         if len(attachement) >= 2:
             await yeet(ctx, "Veuillez n'envoyer qu'une seule image.")
