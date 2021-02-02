@@ -39,10 +39,10 @@ async def test_apiUrl(test_apiBaseUrl, test_path, expected):
   apiClient = ApiClient(apiBaseUrl=test_apiBaseUrl, bearerToken=None)
   assert apiClient.apiUrl(test_path) == expected
 
-async def test_fetchCharacters_success(aiohttp_client, loop):
+async def test_fetchCharacters_success(aiohttp_client):
   apiClient = ApiClient(apiBaseUrl=None, bearerToken=None)
   # replace aiohttp ClientSession with a mock
-  app = web.Application(loop=loop)
+  app = web.Application()
   app.router.add_get('/api/v1/characters', mockCharacters)
   apiClient._session = await aiohttp_client(app)
   # test
@@ -52,10 +52,10 @@ async def test_fetchCharacters_success(aiohttp_client, loop):
   assert apiClient._characters_cache["13"]["name"] == "Yoshi"
   assert apiClient._characters_names_cache["yoshi"] == 13
 
-async def test_fetchCharacters_failure(aiohttp_client, loop):
+async def test_fetchCharacters_failure(aiohttp_client):
   apiClient = ApiClient(apiBaseUrl=None, bearerToken=None)
   # replace aiohttp ClientSession with a mock
-  app = web.Application(loop=loop)
+  app = web.Application()
   app.router.add_get('/api/v1/characters', mock500)
   apiClient._session = await aiohttp_client(app)
   # test
@@ -63,10 +63,10 @@ async def test_fetchCharacters_failure(aiohttp_client, loop):
   assert result == False
   assert len(data) == 0
 
-async def test_fetchCharactersIfNeeded(aiohttp_client, loop):
+async def test_fetchCharactersIfNeeded(aiohttp_client):
   apiClient = ApiClient(apiBaseUrl=None, bearerToken=None)
   # replace aiohttp ClientSession with a mock
-  app = web.Application(loop=loop)
+  app = web.Application()
   app.router.add_get('/api/v1/characters', mockCharacters)
   apiClient._session = await aiohttp_client(app)
   # check init
@@ -88,10 +88,10 @@ async def test_fetchCharactersIfNeeded(aiohttp_client, loop):
   ("1234", 13),
   ("5678", 42)
 ])
-async def test_findCharacterByEmojiTag(aiohttp_client, loop, emoji_tag, expected_id):
+async def test_findCharacterByEmojiTag(aiohttp_client, emoji_tag, expected_id):
   apiClient = ApiClient(apiBaseUrl=None, bearerToken=None)
   # replace aiohttp ClientSession with a mock
-  app = web.Application(loop=loop)
+  app = web.Application()
   app.router.add_get('/api/v1/characters', mockCharacters)
   apiClient._session = await aiohttp_client(app)
   # test
@@ -109,10 +109,10 @@ async def test_findCharacterByEmojiTag(aiohttp_client, loop, emoji_tag, expected
   ("Bôwser", 42),
   ("bowser", 42)
 ])
-async def test_findCharacterByName(aiohttp_client, loop, name, expected_id):
+async def test_findCharacterByName(aiohttp_client, name, expected_id):
   apiClient = ApiClient(apiBaseUrl=None, bearerToken=None)
   # replace aiohttp ClientSession with a mock
-  app = web.Application(loop=loop)
+  app = web.Application()
   app.router.add_get('/api/v1/characters', mockCharacters)
   apiClient._session = await aiohttp_client(app)
   # test
@@ -131,10 +131,10 @@ async def test_findCharacterByName(aiohttp_client, loop, name, expected_id):
   ("Bôwser", 42),
   ("bowser", 42)
 ])
-async def test_findCharacterByLabel(aiohttp_client, loop, label, expected_id):
+async def test_findCharacterByLabel(aiohttp_client, label, expected_id):
   apiClient = ApiClient(apiBaseUrl=None, bearerToken=None)
   # replace aiohttp ClientSession with a mock
-  app = web.Application(loop=loop)
+  app = web.Application()
   app.router.add_get('/api/v1/characters', mockCharacters)
   apiClient._session = await aiohttp_client(app)
   # test
@@ -153,10 +153,10 @@ async def test_findCharacterByLabel(aiohttp_client, loop, label, expected_id):
   ("Bôwser", True),
   ("bowser", True)
 ])
-async def test_isCharacterName(aiohttp_client, loop, label, expected):
+async def test_isCharacterName(aiohttp_client, label, expected):
   apiClient = ApiClient(apiBaseUrl=None, bearerToken=None)
   # replace aiohttp ClientSession with a mock
-  app = web.Application(loop=loop)
+  app = web.Application()
   app.router.add_get('/api/v1/characters', mockCharacters)
   apiClient._session = await aiohttp_client(app)
   # test
@@ -172,10 +172,10 @@ async def test_isCharacterName(aiohttp_client, loop, label, expected):
   ("Bôwser", True),
   ("bowser", True)
 ])
-async def test_isCharacter(aiohttp_client, loop, label, expected):
+async def test_isCharacter(aiohttp_client, label, expected):
   apiClient = ApiClient(apiBaseUrl=None, bearerToken=None)
   # replace aiohttp ClientSession with a mock
-  app = web.Application(loop=loop)
+  app = web.Application()
   app.router.add_get('/api/v1/characters', mockCharacters)
   apiClient._session = await aiohttp_client(app)
   # test
