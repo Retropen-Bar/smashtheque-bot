@@ -254,6 +254,19 @@ async def test_updateTeam(aiohttp_client):
 # TOURNAMENT
 # -----------------------------------------------------------------------------
 
+async def test_findTournamentById(aiohttp_client):
+  apiClient = ApiClient(apiBaseUrl=None, bearerToken=None)
+  # replace aiohttp ClientSession with a mock
+  app = web.Application()
+  app.router.add_get('/api/v1/recurring_tournaments/1337', mockTournament)
+  apiClient._session = await aiohttp_client(app)
+  # test
+  initCallCount = mockTeam.call_count
+  result, details = await apiClient.findTournamentById(7)
+  assert mockTeam.call_count == initCallCount + 1
+  assert result
+  assert details["short_name"] == "R-B"
+
 #   async def findTournamentById(self, tournament_id):
 #     request_url = f"{self.apiUrl('recurring_tournaments')}/{tournament_id}"
 #     async with self._session.get(request_url) as response:
