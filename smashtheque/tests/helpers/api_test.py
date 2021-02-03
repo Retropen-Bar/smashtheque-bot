@@ -37,6 +37,16 @@ hsh = {
 }
 tournaments = [hsh]
 
+dijon = {
+  "id": 21,
+  "name": "Dijon"
+}
+paris = {
+  "id": 75,
+  "name": "Paris"
+}
+locations = [dijon, paris]
+
 async def respondWithCharacters(request):
   return web.Response(body=json.dumps(characters), content_type="application/json")
 mockCharacters = Mock(side_effect=respondWithCharacters)
@@ -52,6 +62,10 @@ mockTeam = Mock(side_effect=respondWithTeam)
 async def respondWithTournament(request):
   return web.Response(body=json.dumps(hsh), content_type="application/json")
 mockTournament = Mock(side_effect=respondWithTournament)
+
+async def respondWithLocations(request):
+  return web.Response(body=json.dumps(locations), content_type="application/json")
+mockLocations = Mock(side_effect=respondWithLocations)
 
 async def mock500(request):
   return web.Response(status=500)
@@ -277,11 +291,6 @@ async def test_findTournamentById(aiohttp_client):
   assert result
   assert details["name"] == "Happy Smash Hour"
 
-#   async def findTournamentById(self, tournament_id):
-#     request_url = f"{self.apiUrl('recurring_tournaments')}/{tournament_id}"
-#     async with self._session.get(request_url) as response:
-#       tournament = await response.json()
-#       return tournament
 
 #   async def createTournamentEvent(self, data):
 #     payload = {"tournament_event": data}
@@ -297,9 +306,24 @@ async def test_findTournamentById(aiohttp_client):
 #         return False, err.errors
 #       return False, {}
 
-#   # ---------------------------------------------------------------------------
-#   # LOCATION
-#   # ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# LOCATION
+# -----------------------------------------------------------------------------
+
+async def test_findLocationByName(aiohttp_client):
+  apiClient = ApiClient(apiBaseUrl=None, bearerToken=None)
+  # replace aiohttp ClientSession with a mock
+  app = web.Application()
+  app.router.add_get('/api/v1/locations', mockLocations)
+  apiClient._session = await aiohttp_client(app)
+  # test
+  initCallCount = mockLocations.call_count
+  result, details = await apiClient.findLocationByName("dijon")
+  assert mockLocations.call_count == initCallCount + 1
+  assert len(apiClient._locations_cache) == 2
+  assert apiClient._locations_cache["21"]["name"] == "Dijon"
+  assert result
+  assert details["name"] == "Dijon"
 
 #   async def findLocationByName(self, name):
 #     request_url = "{0}?by_name_like={1}".format(self.apiUrl("locations"), name)

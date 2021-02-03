@@ -189,14 +189,16 @@ class ApiClient:
   async def findLocationByName(self, name):
     request_url = "{0}?by_name_like={1}".format(self.apiUrl("locations"), name)
     async with self._session.get(request_url) as response:
-      locations = await response.json()
-      if locations != []:
-        # puts values in cache before responding
-        for location in locations:
-          self._locations_cache[str(location["id"])] = location
-        return locations[0]
-      else:
-        return None
+      if response.status == 200:
+        locations = await response.json()
+        if locations != []:
+          # puts values in cache before responding
+          for location in locations:
+            self._locations_cache[str(location["id"])] = location
+          return True, locations[0]
+        else:
+          return True, None
+      return False, {}
 
   async def createLocation(self, name, country=False):
     payload = {"name": name}
