@@ -9,15 +9,28 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+
     - name: Set up Python 3.9
       uses: actions/setup-python@v2
       with:
         python-version: 3.9
+
+    - name: Cache pip
+      uses: actions/cache@v2
+      with:
+        path: ~/.cache/pip
+        # Look to see if there is a cache hit for the corresponding requirements file
+        key: ${{ runner.os }}-pip-v1
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          ${{ runner.os }}-
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -U Red-DiscordBot rollbar
         pip install -U pytest pytest-spec pytest-aiohttp
+
     - name: Test with pytest
       run: |
         cd smashtheque

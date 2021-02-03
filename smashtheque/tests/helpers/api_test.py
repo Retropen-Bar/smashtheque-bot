@@ -31,6 +31,12 @@ cew = {
 }
 teams = [rb, cew]
 
+hsh = {
+  "id": 1337,
+  "name": "Happy Smash Hour"
+}
+tournaments = [hsh]
+
 async def respondWithCharacters(request):
   return web.Response(body=json.dumps(characters), content_type="application/json")
 mockCharacters = Mock(side_effect=respondWithCharacters)
@@ -42,6 +48,10 @@ mockTeams = Mock(side_effect=respondWithTeams)
 async def respondWithTeam(request):
   return web.Response(body=json.dumps(rb), content_type="application/json")
 mockTeam = Mock(side_effect=respondWithTeam)
+
+async def respondWithTournament(request):
+  return web.Response(body=json.dumps(hsh), content_type="application/json")
+mockTournament = Mock(side_effect=respondWithTournament)
 
 async def mock500(request):
   return web.Response(status=500)
@@ -261,11 +271,11 @@ async def test_findTournamentById(aiohttp_client):
   app.router.add_get('/api/v1/recurring_tournaments/1337', mockTournament)
   apiClient._session = await aiohttp_client(app)
   # test
-  initCallCount = mockTeam.call_count
-  result, details = await apiClient.findTournamentById(7)
-  assert mockTeam.call_count == initCallCount + 1
+  initCallCount = mockTournament.call_count
+  result, details = await apiClient.findTournamentById(1337)
+  assert mockTournament.call_count == initCallCount + 1
   assert result
-  assert details["short_name"] == "R-B"
+  assert details["name"] == "Happy Smash Hour"
 
 #   async def findTournamentById(self, tournament_id):
 #     request_url = f"{self.apiUrl('recurring_tournaments')}/{tournament_id}"
