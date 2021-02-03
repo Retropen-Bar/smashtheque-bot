@@ -16,7 +16,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -U Red-DiscordBot
+        pip install -U Red-DiscordBot rollbar
         pip install -U pytest pytest-spec pytest-aiohttp
     - name: Test with pytest
       run: |
