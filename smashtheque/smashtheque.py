@@ -1,8 +1,10 @@
+from discord.mentions import AllowedMentions
 from redbot.core import commands
 from redbot.core.utils.predicates import ReactionPredicate
 from redbot.core.utils.menus import start_adding_reactions
 from redbot.core.utils.chat_formatting import humanize_list
 from redbot.core.utils.predicates import MessagePredicate
+from redbot.core import Config
 
 import discord
 import asyncio
@@ -151,6 +153,9 @@ class Smashtheque(commands.Cog):
 
     def __init__(self, bot: Red):
         self.bot = bot
+        self.config = Config.get_conf(self, identifier=7653724657)
+        default_global = {"broadcast_channels_2v2" : []}
+        self.config.register_global(**default_global, force_registration=True)
 
     def cog_unload(self):
         asyncio.create_task(self._session.close())
@@ -1088,8 +1093,39 @@ class Smashtheque(commands.Cog):
             elif r.status == 200:
                 await self.show_confirmation(ctx, f"Une édition du tournois {tournament['name']} a été modifié avec succès.")
 
+    async def do_add_broadcast_channel(self, ctx, salon:discord.TextChannel):
+        if not salon.permissions_for(ctx.me).send_messages:
+            await yeet(ctx, "Le bot n'a pas la permission d'envoyer des messages dans ce channel !")
+            return
+        channels = await self.config.broadcast_channels_2v2()
+        channels.append(
+            {'guild': ctx.guild.name, 'guild_id': ctx.guild.id, "channel": salon.id})
+        await self.config.broadcast_channels_2v2.set(channels)
+        await self.show_confirmation(ctx, f"Les annonces du circuit 2v2 smashtheque series seront envoyés dans le channel {salon.mention}.\nSi vous ne voulez plus recevoir d'annonces, utilisez la commande `{ctx.clean_prefix}unbroadcast`")
+    
+    async def do_remove_broadcast_channel(self, ctx):
+        channels = await self.config.broadcast_channels_2v2()
+        guild = loop_dict(channels, 'guild_id', ctx.guild.id)
+        print(guild) 
+        if guild is None:
+            await yeet(ctx, "Aucun channel d'annonces n'est définit pour ce serveur.")
+            return
+        channels.pop(channels.index(guild))
+        await self.config.broadcast_channels_2v2.set(channels)
+        await self.show_confirmation(ctx, "Les annonces du circuit 2v2 smashtheque series ne seront plus envoyés dans ce channel")
 
+    async def do_broadcast_message(self, ctx, message):
+        channels = await self.config.broadcast_channels_2v2()
+        count = 0
+        for guild in channels:
+            try:
+                await self.bot.get_guild(guild["guild_id"]).get_channel(guild["channel"]).send(message)
+            except:
+                await ctx.send(f"Message non envoyé dans {guild['guild']}")
+            else:
+                count += 1
 
+        await ctx.send(f"Message envoyé dans {count} serveurs")
     # -------------------------------------------------------------------------
     # COMMANDS
     # -------------------------------------------------------------------------
@@ -1315,6 +1351,35 @@ class Smashtheque(commands.Cog):
         """Cette commande permet aux TOs d'ajouter une édition de leur tournois dans la smashtheque"""
         try:
             await self.do_addedition(ctx, bracket)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.bot_in_a_guild()
+    @commands.has_permissions(manage_channels=True)
+    @commands.command()
+    async def annoncescircuit(self, ctx, salon:discord.TextChannel):
+        try:
+            await self.do_add_broadcast_channel(ctx, salon)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.bot_in_a_guild()
+    @commands.has_permissions(manage_channels=True)   
+    @commands.command()
+    async def unbroadcast(self, ctx):
+        try:
+            await self.do_remove_broadcast_channel(ctx)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.is_owner()
+    @commands.command()
+    async def broadcast(self, ctx, *, message):
+        try:
+            await self.do_broadcast_message(ctx, message)
         except:
             rollbar.report_exc_info()
             raise
