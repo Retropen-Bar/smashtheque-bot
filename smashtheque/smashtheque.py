@@ -92,6 +92,10 @@ def is_emoji(v):
 def match_url(v):
     return re.match(r"^((http[s]?|ftp):\/)?\/?([^:\/\s]+)((\/\w+)*\/)([\w\-\.]+[^#?\s]+)(.*)?(#[\w\-]+)?$", v)
 
+def return_false(ctx):
+    """this method is here to always return False on a check, so no one is allowed to run a command, but it can be overwritten later"""
+    return False
+
 class Map(UserDict):
     def __getattr__(self, attr):
         val = self.data[attr]
@@ -1375,7 +1379,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.is_owner()
+    @commands.permissions_check(return_false)
     @commands.command()
     async def broadcast(self, ctx, *, message):
         try:
