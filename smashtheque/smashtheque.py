@@ -92,9 +92,16 @@ def is_emoji(v):
 def match_url(v):
     return re.match(r"^((http[s]?|ftp):\/)?\/?([^:\/\s]+)((\/\w+)*\/)([\w\-\.]+[^#?\s]+)(.*)?(#[\w\-]+)?$", v)
 
-def return_false(ctx):
+def return_false(_):
     """this method is here to always return False on a check, so no one is allowed to run a command, but it can be overwritten later"""
     return False
+
+async def is_admin_smashtheque(ctx):
+    id_admins = await ctx.bot.get_cog("Smashtheque").config.admins_smashtheque_id()
+    if ctx.author.id in id_admins:
+        return True
+    else:
+        return False 
 
 class Map(UserDict):
     def __getattr__(self, attr):
@@ -158,7 +165,7 @@ class Smashtheque(commands.Cog):
     def __init__(self, bot: Red):
         self.bot = bot
         self.config = Config.get_conf(self, identifier=7653724657)
-        default_global = {"broadcast_channels_2v2" : []}
+        default_global = {"broadcast_channels_2v2" : [], "admins_smashtheque_id": []}
         self.config.register_global(**default_global, force_registration=True)
 
     def cog_unload(self):
@@ -1130,6 +1137,13 @@ class Smashtheque(commands.Cog):
                 count += 1
 
         await ctx.send(f"Message envoyé dans {count} serveurs")
+    
+    async def do_add_admin_smashtheque(self, ctx, member):
+        admins = await self.config.admins_smashtheque_id()
+        admins.append(member.id)
+        await self.config.admins_smashtheque_id.set(admins)
+        await ctx.send("Done !")
+
     # -------------------------------------------------------------------------
     # COMMANDS
     # -------------------------------------------------------------------------
@@ -1185,7 +1199,7 @@ class Smashtheque(commands.Cog):
             raise
 
     @commands.command(usage="<pseudo> <ID Discord>")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.check(is_admin_smashtheque)
     async def associer(self, ctx, *, arg):
         """cette commande va vous permettre d'associer un compte Discord à un joueur de la Smashthèque.
         \n\nVous devez préciser son pseudo et son ID Discord.
@@ -1201,7 +1215,7 @@ class Smashtheque(commands.Cog):
             raise
 
     @commands.command()
-    @commands.admin_or_permissions(administrator=True)
+    @commands.check(is_admin_smashtheque)
     async def jenesuispas(self, ctx):
         """cette commande permet de dissocier votre compte Discord d'un joueur de la Smashthèque.
         \n\n\nExemples : \n- jenesuispas\n"""
@@ -1213,7 +1227,7 @@ class Smashtheque(commands.Cog):
             raise
 
     @commands.command(usage="<ID Discord>")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.check(is_admin_smashtheque)
     async def dissocier(self, ctx, *, target_member: discord.Member):
         """cette commande permet de dissocier un compte Discord d'un joueur de la Smashthèque.
         \n\nVous devez préciser son ID Discord.
@@ -1226,7 +1240,7 @@ class Smashtheque(commands.Cog):
             raise
 
     @commands.command(usage="<ID Discord>")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.check(is_admin_smashtheque)
     async def quiest(self, ctx, *, target_member: discord.Member):
         try:
             await self.do_showplayer(ctx, target_member)
@@ -1379,11 +1393,20 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.permissions_check(return_false)
+    @commands.check(is_admin_smashtheque)
     @commands.command()
     async def broadcast(self, ctx, *, message):
         try:
             await self.do_broadcast_message(ctx, message)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.is_owner()
+    @commands.command()
+    async def addadmin(self, ctx, member:discord.Member):
+        try:
+            await self.do_add_admin_smashtheque(ctx, member)
         except:
             rollbar.report_exc_info()
             raise
