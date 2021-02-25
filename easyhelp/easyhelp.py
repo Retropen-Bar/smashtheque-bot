@@ -16,7 +16,34 @@ class HelpFormatter(commands.RedHelpFormatter):
                 help_for = None
             return await super().send_help(ctx, help_for, from_help_command=from_help_command)
         p = ctx.clean_prefix
-        embed = discord.Embed(title="Help Smashthèque", description="Not working")
+        embed = discord.Embed.from_dict(
+            {
+      "title": "Aide de la Smashthèque",
+      "description": "Vérifiez toujours au préalable que vous n'êtes pas déjà dans la base de données",
+      "color": 16265778,
+      "fields": [
+        {
+          "name": "Liste des commandes :",
+          "value": f"Sachant qu'il faut toujours rajouter quelque chose derrière le nom de commande (par exemple un emote de perso ou un nom de team) \n`{ctx.clean_prefix}ajouterpersos` pour ajouter un ou des persos\n`{ctx.clean_prefix}enleverpersos` pour enlever des persos\n`{ctx.clean_prefix}remplacerpersos` pour remplacer tout vos persos\n`{ctx.clean_prefix}ajouterville` pour ajouter une ville\n`{ctx.clean_prefix}enleverville` pour enlever une ville\n`{ctx.clean_prefix}creerville` pour créer une ville __**si elle n'existe pas**__\n`{ctx.clean_prefix}ajouterpays` pour ajouter un pays\n`{ctx.clean_prefix}enleverpays` pour enlever un pays\n||si votre pays c'est la France, pas besoin de le mettre hein||\n`{ctx.clean_prefix}integrer` pour s'ajouter à une team existante (utiliser le nom court)\n`{ctx.clean_prefix}quitter` pour quitter une team (nom court aussi)\n`{ctx.clean_prefix}changerpseudo` pour changer votre pseudo\n`{ctx.clean_prefix}chercherjoueur` pour chercher un joueur par son pseudo\n`{ctx.clean_prefix}bracket` pour ajouter une édition à un tournoi dont vous êtes l'admin\n`{ctx.clean_prefix}annoncescircuit` pour suivre les annonces du 2v2 smashtheque series"
+        },
+        {
+          "name": "Pour créer un joueur :",
+          "value": f"Pour créer un joueur, utilisez la commande `{ctx.clean_prefix}creerjoueur`. Pour plus d'infos sur la création d'un joueur, utilisez la commande `{ctx.clean_prefix}help creerjoueur`"
+        },
+        {
+          "name": "Liens importants :",
+          "value": "**[Accueil](https://smashtheque.fr) • [Serveur Discord](https://discord.gg/2HwUAyw) • [Lien Du Bot](https://smashtheque.fr/bot)**"
+        }
+      ],
+      "author": {
+        "name": "\u200b",
+        "icon_url": "https://s3.eu-west-3.amazonaws.com/static.smashtheque.fr/img/smashtheque-256.png"
+      },
+          "footer": {
+        "text": "Avec ❤️ par les admins Smashthèque"
+      }
+    }
+        )
 
         help_settings = await commands.HelpSettings.from_context(ctx)
         await self.send_pages(ctx, pages=[embed], embed=True, help_settings=help_settings)
