@@ -205,7 +205,7 @@ class Smashtheque(commands.Cog):
             character = await self.find_character_by_emoji_tag(ctx, label)
             return character
 
-        if self.is_character_name(label):
+        if self.is_character_name(label) or label.lower() == "pyra" or label.lower() == "mythra":
             character = await self.find_character_by_name(ctx, label)
             return character
 
@@ -233,7 +233,10 @@ class Smashtheque(commands.Cog):
 
     # this method is called when we are sure @name exists as a key of @_characters_names_cache
     async def find_character_by_name(self, ctx, name):
-        character_id = self._characters_names_cache[normalize_str(name)]
+        if name.lower() == "pyra" or name.lower() == "mythra":
+            character_id = self._characters_names_cache[normalize_str("pyra/mythra")]
+        else:
+            character_id = self._characters_names_cache[normalize_str(name)]
         return self._characters_cache[str(character_id)]
 
     async def find_team_by_short_name(self, short_name):
@@ -901,6 +904,7 @@ class Smashtheque(commands.Cog):
 
         parts = math.ceil(len(lines) / 30)
         part = 0
+        message_list = []
         for i in range(0, len(lines), 30):
             part += 1
             embed = discord.Embed(
@@ -912,7 +916,7 @@ class Smashtheque(commands.Cog):
                 name="Smashthèque",
                 icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
             )
-            await ctx.send(embed=embed)
+            message_list.append(await ctx.send(embed=embed))
 
     async def do_addcharacters(self, ctx, discord_id, labels):
 
