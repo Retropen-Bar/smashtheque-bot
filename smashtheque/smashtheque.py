@@ -1,3 +1,4 @@
+from asgiref.sync import sync_to_async
 from discord.mentions import AllowedMentions
 from redbot.core import commands
 from redbot.core.utils.predicates import ReactionPredicate
@@ -21,6 +22,8 @@ import unicodedata
 from collections.abc import Mapping
 from collections import UserDict
 from random import choice
+
+from .models.character import *
 
 def normalize_str(s):
     s1 = ''.join(
@@ -101,7 +104,7 @@ async def is_admin_smashtheque(ctx):
     if ctx.author.id in id_admins:
         return True
     else:
-        return False 
+        return False
 
 class Map(UserDict):
     def __getattr__(self, attr):
@@ -889,14 +892,12 @@ class Smashtheque(commands.Cog):
 
     async def do_listavailablecharacters(self, ctx):
 
-        # fill characters cache if empty
-        await self.fetch_characters_if_needed()
+        characters = await sync_to_async(Character.objects.all, thread_sensitive=True)()
 
         lines = []
-        for character_id in self._characters_cache:
-            character = self._characters_cache[str(character_id)]
-            tag = format_character(character)
-            name = character["name"]
+        for character in characters:
+            tag = format_emoji(character.emoji)
+            name = character.name
             lines.append([tag, name])
         lines.sort(key=lambda l: l[1])
         for idx in range(0, len(lines)):
@@ -1117,11 +1118,11 @@ class Smashtheque(commands.Cog):
             {'guild': ctx.guild.name, 'guild_id': ctx.guild.id, "channel": salon.id})
         await self.config.broadcast_channels_2v2.set(channels)
         await self.show_confirmation(ctx, f"Les annonces du circuit 2v2 smashtheque series seront envoyés dans le channel {salon.mention}.\nSi vous ne voulez plus recevoir d'annonces, utilisez la commande `{ctx.clean_prefix}unbroadcast`")
-    
+
     async def do_remove_broadcast_channel(self, ctx):
         channels = await self.config.broadcast_channels_2v2()
         guild = loop_dict(channels, 'guild_id', ctx.guild.id)
-        print(guild) 
+        print(guild)
         if guild is None:
             await yeet(ctx, "Aucun channel d'annonces n'est définit pour ce serveur.")
             return
@@ -1141,7 +1142,7 @@ class Smashtheque(commands.Cog):
                 count += 1
 
         await ctx.send(f"Message envoyé dans {count} serveurs")
-    
+
     async def do_add_admin_smashtheque(self, ctx, member):
         admins = await self.config.admins_smashtheque_id()
         admins.append(member.id)
@@ -1388,7 +1389,7 @@ class Smashtheque(commands.Cog):
             raise
 
     @commands.bot_in_a_guild()
-    @commands.has_permissions(manage_channels=True)   
+    @commands.has_permissions(manage_channels=True)
     @commands.command()
     async def unbroadcast(self, ctx):
         try:
