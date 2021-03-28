@@ -540,8 +540,8 @@ class Smashtheque(commands.Cog):
         # 0: pseudo
         # 1: characters
         # 2: team
-        # 3: location
-        # 4: discord ID
+        # --3: location-- removed
+        # 3: discord ID
 
         current_stage = 0
 
@@ -550,12 +550,11 @@ class Smashtheque(commands.Cog):
             "name": "",
             "character_ids": [],
             "creator_discord_id": "",
-            "location_ids": [],
             "team_ids": []
         }
 
         # process each argument between spaces
-        # [name piece] [name piece] [emoji] [emoji] [team] [location] [discord ID]
+        # [name piece] [name piece] [emoji] [emoji] [team] [discord ID]
         arguments = arg.split()
 
         for argu in arguments:
@@ -564,7 +563,7 @@ class Smashtheque(commands.Cog):
             if current_stage == 0:
                 print('stage 0')
                 # at this stage, the next argument could be a name piece
-                # ... [name piece] [emoji] [emoji] [team] [location] [discord ID]
+                # ... [name piece] [emoji] [emoji] [team] [discord ID]
 
                 if self.is_character(argu):
                     if len(response["name"]) > 0:
@@ -628,30 +627,6 @@ class Smashtheque(commands.Cog):
             # without restarting the loop
             if current_stage == 3:
                 print('stage 3')
-                # at this stage, the next argument could be a location
-                # ... [location] [discord ID]
-
-                if is_discord_id(argu):
-                    response["discord_id"] = str(argu)
-                    break
-
-                location = await self.find_location_by_name(argu)
-                if location != None:
-                    response["location_ids"].append(location["id"])
-                    current_stage = 4
-                    continue
-
-                # nope, not a location
-                # so we have a problem here
-                # because argu is neither a location nor a Discord ID
-                # -> we could already stop here and raise an issue
-
-                current_stage = 4
-
-            # do not use elif here because we want the previous section to be able to go here
-            # without restarting the loop
-            if current_stage == 4:
-                print('stage 4')
                 # at this stage, the next argument could only be a discord ID
                 # ... [discord ID]
 
@@ -659,26 +634,18 @@ class Smashtheque(commands.Cog):
                     response["discord_id"] = str(argu)
                     break
 
-                # so we were unable to parse argu
-                if len(response["location_ids"]) > 0:
-                    # we have a location, so we are pretty sure argu was supposed to be a Discord ID
-                    await yeet(
-                        ctx,
-                        f"Veuillez entrer un ID Discord correct pour le joueur à ajouter : {argu} n'en est pas un.\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
-                    )
-                    return
                 elif len(response["team_ids"]) > 0:
                     # we have a team, so argu could be for a location or a Discord ID
                     await yeet(
                         ctx,
-                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec `{ctx.clean_prefix}creerville` ou `{ctx.clean_prefix}creerpays`.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
+                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
                     )
                     return
                 else:
                     # we have no team and no location: argu could be for a team, a location or a Discord ID
                     await yeet(
                         ctx,
-                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une équipe, vous devez demander à un administrateur de la créer.\nS'il s'agit d'une localisation (ville, pays), vous pouvez la créer avec `{ctx.clean_prefix}creerville` ou `{ctx.clean_prefix}creerpays`.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
+                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une équipe, vous devez demander à un administrateur de la créer.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
                     )
                     return
 
@@ -1176,13 +1143,13 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<pseudo> <emojis ou noms de persos> [team] [localisation] [ID Discord]")
+    @commands.command(usage="<pseudo> <emojis ou noms de persos> [team] [ID Discord]")
     async def creerjoueur(self, ctx, *, arg):
         """cette commande va vous permettre d'ajouter un joueur dans la Smashthèque.
         \n\nVous devez ajouter au minimum le pseudo et les personnages joués (dans l'ordre).
-        \n\nVous pouvez aussi ajouter sa team, sa localisation et, s'il possède un compte Discord, son ID pour qu'il puisse modifier lui-même son compte.
+        \n\nVous pouvez aussi ajouter sa team et, s'il possède un compte Discord, son ID pour qu'il puisse modifier lui-même son compte.
         \n\nVous pouvez récupérer l'ID avec les options de developpeur (activez-les dans l'onglet Apparence des paramètres de l'utilisateur, puis faites un clic droit sur l'utilisateur et sélectionnez \"Copier ID\".)
-        \n\n\nExemples : \n- creerjoueur Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>\n- creerjoueur Pixel Yoshi Bowser\n- creerjoueur red <:Joker:737480520052637756> LoS Paris 332894758076678144\n"""
+        \n\n\nExemples : \n- creerjoueur Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>\n- creerjoueur Pixel Yoshi Bowser\n- creerjoueur red <:Joker:737480520052637756> OPS 332894758076678144\n"""
 
         try:
             await self.do_addplayer(ctx, arg)
