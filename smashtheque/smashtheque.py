@@ -353,12 +353,14 @@ class Smashtheque(commands.Cog):
             return pred.result
         return None
 
-    async def show_confirmation(self, ctx, message):
+    async def show_confirmation(self, ctx, message, link=None):
         embed = discord.Embed(
             title="I guess it's done!",
             description=message,
             colour=discord.Colour.green()
         )
+        if link:
+            embed.add_field(name=link, value="\u200b")
         await ctx.send(embed=embed)
 
     def embed_players(self, embed, players, with_index=False):
@@ -693,7 +695,7 @@ class Smashtheque(commands.Cog):
                 return
             await self.update_player(ctx, player["id"], {"discord_id": str(discord_id)})
             discord_user = format_discord_user(discord_id)
-            await self.show_confirmation(ctx, f"Le compte Discord {discord_user} est maintenant associé au joueur {pseudo}.")
+            await self.show_confirmation(ctx, f"Le compte Discord {discord_user} est maintenant associé au joueur {pseudo}.", link=f"{self.api_base_url}/players/{player['id']}")
             return
 
         # multiple players found: ask which one
@@ -709,7 +711,7 @@ class Smashtheque(commands.Cog):
             return
         await self.update_player(ctx, player["id"], {"discord_id": str(discord_id)})
         discord_user = format_discord_user(discord_id)
-        await self.show_confirmation(ctx, f"Le compte Discord {discord_user} est maintenant associé au joueur {pseudo}.")
+        await self.show_confirmation(ctx, f"Le compte Discord {discord_user} est maintenant associé au joueur {pseudo}.", link=f"{self.api_base_url}/players/{player['id']}")
 
     async def do_unlink(self, ctx, target_member):
         discord_id = target_member.id
@@ -726,7 +728,7 @@ class Smashtheque(commands.Cog):
         await self.update_player(ctx, player["id"], {"discord_id": None})
         player_name = player["name"]
         discord_user = format_discord_user(discord_id)
-        await self.show_confirmation(ctx, f"Le compte Discord {discord_user} a été dissocié du joueur {player_name}.")
+        await self.show_confirmation(ctx, f"Le compte Discord {discord_user} a été dissocié du joueur {player_name}.", link=f"{self.api_base_url}/players/{player['id']}")
 
     async def do_showplayer(self, ctx, target_member):
         discord_id = target_member.id
@@ -1002,7 +1004,7 @@ class Smashtheque(commands.Cog):
                 print(response.text)
                 return
             else:
-                await self.show_confirmation(ctx, f"Le {object_name} de la team {team['name']} a été mis à jour avec succès.")
+                await self.show_confirmation(ctx, f"Le {object_name} de la team {team['name']} a été mis à jour avec succès.", link = f"{self.api_base_url}/teams/{team['id']}")
 
     async def do_addedition(self, ctx, bracket):
         #generic checks
@@ -1071,9 +1073,9 @@ class Smashtheque(commands.Cog):
         request_url = self.api_url("tournament_events")
         async with self._session.post(request_url, json=tournament_response) as r:
             if r.status == 201:
-                await self.show_confirmation(ctx, f"Une édition du tournois {tournament['name']} a été crée avec succès.")
+                await self.show_confirmation(ctx, f"Une édition du tournois {tournament['name']} a été crée avec succès.", link=f"{self.api_base_url}/tournament_events/{tournament['id']}")
             elif r.status == 200:
-                await self.show_confirmation(ctx, f"Une édition du tournois {tournament['name']} a été modifié avec succès.")
+                await self.show_confirmation(ctx, f"Une édition du tournois {tournament['name']} a été modifié avec succès.", link=f"{self.api_base_url}/tournament_events/{tournament['id']}")
 
     async def do_add_broadcast_channel(self, ctx, salon:discord.TextChannel):
         if not salon.permissions_for(ctx.me).send_messages:
