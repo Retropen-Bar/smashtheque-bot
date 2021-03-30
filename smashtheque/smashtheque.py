@@ -264,6 +264,7 @@ class Smashtheque(commands.Cog):
             return tournament
 
     async def find_location_by_name(self, name):
+        """!!!!!!!!!!!!!!!! probably obsolete !!!!!!!!!!!!!!!!!!!!!!!"""
         request_url = "{0}?by_name_like={1}".format(self.api_url("locations"), name)
         async with self._session.get(request_url) as response:
             locations = await response.json()
@@ -774,47 +775,6 @@ class Smashtheque(commands.Cog):
             return
         await self.update_player(ctx, player["id"], {"name": new_name})
 
-    async def do_removelocation(self, ctx, discord_id, location_name):
-        player = await self.find_player_by_discord_id(discord_id)
-        if player == None:
-            await self.raise_not_linked(ctx)
-            return
-        location_ids = player["location_ids"]
-        location = await self.find_location_by_name(location_name)
-        if location == None:
-            await self.raise_message(
-                ctx,
-                f"Nous n'avons pas réussi à trouver {location_name}.\nS'il s'agit d'une ville, vous pouvez l'ajouter à la Smashthèque avec `{ctx.clean_prefix}creerville`.\nS'il s'agit d'un pays, vous pouvez l'ajouter à la Smashthèque avec `{ctx.clean_prefix}creerpays`"
-            )
-            return
-        location_id = location["id"]
-        if location_id in location_ids:
-            location_ids.remove(location_id)
-        await self.update_player(ctx, player["id"], {"location_ids": location_ids})
-
-    async def do_addlocation(self, ctx, discord_id, location_name):
-        player = await self.find_player_by_discord_id(discord_id)
-        if player == None:
-            await self.raise_not_linked(ctx)
-            return
-        location_ids = player["location_ids"]
-        location = await self.find_location_by_name(location_name)
-        if location == None:
-            await self.raise_message(
-                ctx,
-                f"Nous n'avons pas réussi à trouver {location_name}.\nS'il s'agit d'une ville, vous pouvez l'ajouter à la Smashthèque avec `{ctx.clean_prefix}creerville`.\nS'il s'agit d'un pays, vous pouvez l'ajouter à la Smashthèque avec `{ctx.clean_prefix}creerpays`."
-            )
-            return
-        location_id = location["id"]
-        if location_id in location_ids:
-            await self.raise_message(
-                ctx,
-                f"Ce joueur est déjà localisé à {location_name}."
-            )
-            return
-        location_ids.append(location_id)
-        await self.update_player(ctx, player["id"], {"location_ids": location_ids})
-
     async def do_removeteam(self, ctx, discord_id, team_short_name):
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
@@ -1281,22 +1241,6 @@ class Smashtheque(commands.Cog):
     async def integrer(self, ctx, *, team_short_name):
         try:
             await self.do_addteam(ctx, ctx.author.id, team_short_name)
-        except:
-            rollbar.report_exc_info()
-            raise
-
-    @commands.command(usage="<localisation>")
-    async def enleverlocalisation(self, ctx, *, location_name):
-        try:
-            await self.do_removelocation(ctx, ctx.author.id, location_name)
-        except:
-            rollbar.report_exc_info()
-            raise
-
-    @commands.command(usage="<localisation>")
-    async def ajouterlocalisation(self, ctx, *, location_name):
-        try:
-            await self.do_addlocation(ctx, ctx.author.id, location_name)
         except:
             rollbar.report_exc_info()
             raise
