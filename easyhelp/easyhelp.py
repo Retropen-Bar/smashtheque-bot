@@ -24,7 +24,22 @@ class HelpFormatter(commands.RedHelpFormatter):
       "fields": [
         {
           "name": "Liste des commandes :",
-          "value": f"Sachant qu'il faut toujours rajouter quelque chose derrière le nom de commande (par exemple un emote de perso ou un nom de team) \n`{ctx.clean_prefix}ajouterpersos` pour ajouter un ou des persos\n`{ctx.clean_prefix}enleverpersos` pour enlever des persos\n`{ctx.clean_prefix}remplacerpersos` pour remplacer tout vos persos\n`{ctx.clean_prefix}persos` pour avoir la liste des persos que le bot reconnait\n`{ctx.clean_prefix}ajouterville` pour ajouter une ville\n`{ctx.clean_prefix}enleverville` pour enlever une ville\n`{ctx.clean_prefix}creerville` pour créer une ville __**si elle n'existe pas**__\n`{ctx.clean_prefix}ajouterpays` pour ajouter un pays\n`{ctx.clean_prefix}enleverpays` pour enlever un pays\n||si votre pays c'est la France, pas besoin de le mettre hein||\n`{ctx.clean_prefix}integrer` pour s'ajouter à une team existante (utiliser le nom court)\n`{ctx.clean_prefix}quitter` pour quitter une team (nom court aussi)\n`{ctx.clean_prefix}changerpseudo` pour changer votre pseudo\n`{ctx.clean_prefix}chercherjoueur` pour chercher un joueur par son pseudo\n`{ctx.clean_prefix}bracket` pour ajouter une édition à un tournoi dont vous êtes l'admin\n`{ctx.clean_prefix}annoncescircuit` pour suivre les annonces du 2v2 smashtheque series"
+          "value": f"Sachant qu'il faut toujours rajouter quelque chose derrière le nom de commande (par exemple un emote de perso ou un nom de team) \n"
+          f"`{ctx.clean_prefix}ajouterpersos` pour ajouter un ou des persos\n"
+          f"`{ctx.clean_prefix}enleverpersos` pour enlever des persos\n"
+          f"`{ctx.clean_prefix}remplacerpersos` pour remplacer tout vos persos\n"
+          f"`{ctx.clean_prefix}persos` pour avoir la liste des persos que le bot reconnait\n"
+          f"`{ctx.clean_prefix}ajouterville` pour ajouter une ville\n"
+          f"`{ctx.clean_prefix}enleverville` pour enlever une ville\n"
+          f"`{ctx.clean_prefix}creerville` pour créer une ville __**si elle n'existe pas**__\n"
+          f"`{ctx.clean_prefix}ajouterpays` pour ajouter un pays\n"
+          f"`{ctx.clean_prefix}enleverpays` pour enlever un pays\n||si votre pays c'est la France, pas besoin de le mettre hein||\n"
+          f"`{ctx.clean_prefix}integrer` pour s'ajouter à une team existante (utiliser le nom court)\n"
+          f"`{ctx.clean_prefix}quitter` pour quitter une team (nom court aussi)\n"
+          f"`{ctx.clean_prefix}changerpseudo` pour changer votre pseudo\n"
+          f"`{ctx.clean_prefix}chercherjoueur` pour chercher un joueur par son pseudo\n"
+          f"`{ctx.clean_prefix}bracket` pour ajouter une édition à un tournoi dont vous êtes l'admin\n"
+          f"`{ctx.clean_prefix}annoncescircuit` pour suivre les annonces du 2v2 smashtheque series"
         },
         {
           "name": "Pour créer un joueur :",
