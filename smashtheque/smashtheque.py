@@ -260,6 +260,8 @@ class Smashtheque(commands.Cog):
     async def find_tournament_by_id(self, tournament_id):
         request_url = f"{self.api_url('recurring_tournaments')}/{tournament_id}"
         async with self._session.get(request_url) as response:
+            if response.status == 404:
+                return None
             tournament = await response.json()
             return tournament
 
@@ -1036,6 +1038,40 @@ class Smashtheque(commands.Cog):
                 await self.show_confirmation(ctx, f"Une édition du tournois {tournament['name']} a été crée avec succès.", link=f"{self.api_base_url}/tournament_events/{tournament['id']}")
             elif r.status == 200:
                 await self.show_confirmation(ctx, f"Une édition du tournois {tournament['name']} a été modifié avec succès.", link=f"{self.api_base_url}/tournament_events/{tournament['id']}")
+            elif r.status == 422:
+                await yeet(ctx, "Ce tournoi est déjà enregistré dans la Smashthèque.")
+                return
+
+    async def do_insertedition(self, ctx, series_id, bracket):
+        tournament = await self.find_tournament_by_id(series_id)
+        print(tournament)
+        if not tournament:
+            await yeet(ctx, "Cette ID ne correspond à aucun tournoi.")
+            return
+        embed = discord.Embed(title=f"Vous êtes sur le point d'ajouter une édition au tournois {tournament['name']}", description="Confirmer ?")
+        embed.set_author(
+            name="Smashthèque",
+            icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
+        )
+        tournament_response = {
+            "tournament_event": {
+                "recurring_tournament_id": series_id,
+                "bracket_url": bracket
+            }
+        }
+        attachement = ctx.message.attachments
+        if len(attachement) == 1:
+            tournament_response["tournament_event"]["graph_url"] = attachement[0].url
+        request_url = self.api_url("tournament_events")
+        async with self._session.post(request_url, json=tournament_response) as r:
+            if r.status == 201:
+                await self.show_confirmation(ctx, f"Une édition a été crée avec succès.", link=f"{self.api_base_url}/tournament_events/{series_id}")
+            elif r.status == 200:
+                await self.show_confirmation(ctx, f"Une édition a été modifié avec succès.", link=f"{self.api_base_url}/tournament_events/{series_id}")
+            elif r.status == 422:
+                await yeet(ctx, "Ce tournoi est déjà enregistré dans la Smashthèque.")
+                return
+
 
     async def do_add_broadcast_channel(self, ctx, salon:discord.TextChannel):
         if not salon.permissions_for(ctx.me).send_messages:
@@ -1286,6 +1322,16 @@ class Smashtheque(commands.Cog):
         """Cette commande permet aux TOs d'ajouter une édition de leur tournois dans la smashtheque"""
         try:
             await self.do_addedition(ctx, bracket)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.check(is_admin_smashtheque)
+    @commands.command()
+    async def inserertournoi(self, ctx, series_id, bracket):
+        """Cette commande permet aux TOs d'ajouter une édition de leur tournois dans la smashtheque"""
+        try:
+            await self.do_insertedition(ctx, series_id, bracket)
         except:
             rollbar.report_exc_info()
             raise
