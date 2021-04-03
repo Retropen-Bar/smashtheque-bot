@@ -101,7 +101,7 @@ async def is_admin_smashtheque(ctx):
     if ctx.author.id in id_admins:
         return True
     else:
-        return False 
+        return False
 
 class Map(UserDict):
     def __getattr__(self, attr):
@@ -1024,20 +1024,21 @@ class Smashtheque(commands.Cog):
         if not await self.ask_confirmation(ctx, embed):
             await ctx.send("Commande annulée.")
             return
-        tournament_response = {
+        tournament_payload = {
             "tournament_event": {
                 "recurring_tournament_id": tournament["id"],
                 "bracket_url": bracket
             }
         }
         if len(attachement) == 1:
-            tournament_response["tournament_event"]["graph_url"] = attachement[0].url
+            tournament_payload["tournament_event"]["graph_url"] = attachement[0].url
         request_url = self.api_url("tournament_events")
-        async with self._session.post(request_url, json=tournament_response) as r:
+        async with self._session.post(request_url, json=tournament_payload) as r:
+            response = await r.json()
             if r.status == 201:
-                await self.show_confirmation(ctx, f"Une édition du tournois {tournament['name']} a été crée avec succès.", link=f"{self.api_base_url}/tournament_events/{tournament['id']}")
+                await self.show_confirmation(ctx, f"Une édition du tournoi {tournament['name']} a été crée avec succès.", link=f"{self.api_base_url}/tournament_events/{response['id']}")
             elif r.status == 200:
-                await self.show_confirmation(ctx, f"Une édition du tournois {tournament['name']} a été modifié avec succès.", link=f"{self.api_base_url}/tournament_events/{tournament['id']}")
+                await self.show_confirmation(ctx, f"Une édition du tournoi {tournament['name']} a été modifié avec succès.", link=f"{self.api_base_url}/tournament_events/{response['id']}")
             elif r.status == 422:
                 await yeet(ctx, "Ce tournoi est déjà enregistré dans la Smashthèque.")
                 return
@@ -1053,7 +1054,7 @@ class Smashtheque(commands.Cog):
             name="Smashthèque",
             icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
         )
-        tournament_response = {
+        tournament_payload = {
             "tournament_event": {
                 "recurring_tournament_id": series_id,
                 "bracket_url": bracket
@@ -1061,13 +1062,14 @@ class Smashtheque(commands.Cog):
         }
         attachement = ctx.message.attachments
         if len(attachement) == 1:
-            tournament_response["tournament_event"]["graph_url"] = attachement[0].url
+            tournament_payload["tournament_event"]["graph_url"] = attachement[0].url
         request_url = self.api_url("tournament_events")
-        async with self._session.post(request_url, json=tournament_response) as r:
+        async with self._session.post(request_url, json=tournament_payload) as r:
+            response = await r.json()
             if r.status == 201:
-                await self.show_confirmation(ctx, f"Une édition a été crée avec succès.", link=f"{self.api_base_url}/tournament_events/{series_id}")
+                await self.show_confirmation(ctx, f"Une édition a été crée avec succès.", link=f"{self.api_base_url}/tournament_events/{response['id']}")
             elif r.status == 200:
-                await self.show_confirmation(ctx, f"Une édition a été modifié avec succès.", link=f"{self.api_base_url}/tournament_events/{series_id}")
+                await self.show_confirmation(ctx, f"Une édition a été modifié avec succès.", link=f"{self.api_base_url}/tournament_events/{response['id']}")
             elif r.status == 422:
                 await yeet(ctx, "Ce tournoi est déjà enregistré dans la Smashthèque.")
                 return
@@ -1082,11 +1084,11 @@ class Smashtheque(commands.Cog):
             {'guild': ctx.guild.name, 'guild_id': ctx.guild.id, "channel": salon.id})
         await self.config.broadcast_channels_2v2.set(channels)
         await self.show_confirmation(ctx, f"Les annonces du circuit 2v2 smashtheque series seront envoyés dans le channel {salon.mention}.\nSi vous ne voulez plus recevoir d'annonces, utilisez la commande `{ctx.clean_prefix}unbroadcast`")
-    
+
     async def do_remove_broadcast_channel(self, ctx):
         channels = await self.config.broadcast_channels_2v2()
         guild = loop_dict(channels, 'guild_id', ctx.guild.id)
-        print(guild) 
+        print(guild)
         if guild is None:
             await yeet(ctx, "Aucun channel d'annonces n'est définit pour ce serveur.")
             return
@@ -1106,7 +1108,7 @@ class Smashtheque(commands.Cog):
                 count += 1
 
         await ctx.send(f"Message envoyé dans {count} serveurs")
-    
+
     async def do_add_admin_smashtheque(self, ctx, member):
         admins = await self.config.admins_smashtheque_id()
         admins.append(member.id)
@@ -1347,7 +1349,7 @@ class Smashtheque(commands.Cog):
             raise
 
     @commands.bot_in_a_guild()
-    @commands.has_permissions(manage_channels=True)   
+    @commands.has_permissions(manage_channels=True)
     @commands.command()
     async def unbroadcast(self, ctx):
         try:
