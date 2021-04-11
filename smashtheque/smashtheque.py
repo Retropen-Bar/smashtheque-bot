@@ -266,12 +266,12 @@ class Smashtheque(commands.Cog):
             return tournament
 
     async def find_tournament_by_discord_id(self, discord_id):
-        # TODO Endpoint : request_url = f"{self.api_url('recurring_tournaments')}/{discord_id}"
+        request_url = f"{self.api_url('recurring_tournaments')}.json?by_discord_guild_discord_id={discord_id}"
         async with self._session.get(request_url) as response:
             if response.status == 404:
                 return None
             tournament = await response.json()
-            return tournament
+            return tournament[0]
 
     async def find_location_by_name(self, name):
         """!!!!!!!!!!!!!!!! probably obsolete !!!!!!!!!!!!!!!!!!!!!!!"""
