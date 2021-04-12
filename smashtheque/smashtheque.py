@@ -270,8 +270,12 @@ class Smashtheque(commands.Cog):
         async with self._session.get(request_url) as response:
             if response.status == 404:
                 return None
-            tournament = await response.json()
-            return tournament[0]
+            tournaments = await response.json()
+            try:
+                tournament = tournaments[0]
+            except IndexError:
+                tournament = None
+            return tournament
 
     async def find_location_by_name(self, name):
         """!!!!!!!!!!!!!!!! probably obsolete !!!!!!!!!!!!!!!!!!!!!!!"""
