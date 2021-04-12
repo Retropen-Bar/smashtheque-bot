@@ -103,6 +103,17 @@ async def is_admin_smashtheque(ctx):
     else:
         return False
 
+async def is_user_recurring_tournament_admin(ctx):
+    user = await ctx.bot.get_cog("Smashtheque").find_member_by_discord_id(ctx.author.id)
+    tournament = await ctx.bot.get_cog("Smashtheque").find_tournament_by_discord_id(ctx.guild.id)
+    if user is None:
+        await yeet(ctx, "Vous n'êtes pas enregistré dans la smashtheque.")
+        return
+    for recurring_tournament in user["administrated_recurring_tournaments"]:
+        if recurring_tournament["id"] == tournament['id']:
+            return True
+    return False
+
 class Map(UserDict):
     def __getattr__(self, attr):
         val = self.data[attr]
@@ -1407,7 +1418,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    # TODO Faire un check pour les TOs
+    @commands.check(is_user_recurring_tournament_admin)
     @commands.command()
     async def setnetwork(self, ctx, joueur:discord.Member, valide:int):
         try:
