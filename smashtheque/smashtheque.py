@@ -107,7 +107,10 @@ async def is_user_recurring_tournament_admin(ctx):
     user = await ctx.bot.get_cog("Smashtheque").find_member_by_discord_id(ctx.author.id)
     tournament = await ctx.bot.get_cog("Smashtheque").find_tournament_by_discord_id(ctx.guild.id)
     if user is None:
-        await yeet(ctx, "Vous n'êtes pas enregistré dans la smashtheque.")
+        await yeet(ctx, "Vous n'êtes pas enregistré dans la Smashthèque.")
+        return
+    if tournament is None:
+        await yeet(ctx, "Ce serveur Discord n'a pas de tournoi associé dans la Smashtèque")
         return
     for recurring_tournament in user["administrated_recurring_tournaments"]:
         if recurring_tournament["id"] == tournament['id']:
