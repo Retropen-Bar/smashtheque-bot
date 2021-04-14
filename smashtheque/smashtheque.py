@@ -1148,7 +1148,7 @@ class Smashtheque(commands.Cog):
             "has_good_network": bool(valide),
             "certifier_discord_id": ctx.author.id
         }
-        async with self._session.patch(request_url, json=request_body) as response:
+        async with self._session.put(request_url, json=request_body) as response:
             if response.status != 200:
                 await generic_error(ctx,
                                     f"error in command setnetwork : status code {response.status}, response : {response}")
