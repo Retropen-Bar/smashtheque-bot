@@ -1142,7 +1142,7 @@ class Smashtheque(commands.Cog):
         await ctx.send("Done !")
 
     async def do_setnetwork(self, ctx, joueur, valide):
-        tournoi = self.find_tournament_by_discord_id(ctx.guild.id)
+        tournoi = await self.find_tournament_by_discord_id(ctx.guild.id)
         request_url = f"{self.api_url('recurring_tournaments')}/{tournoi['id']}/discord_users/{joueur.id}"
         request_body = {
             "has_good_network": bool(valide),
