@@ -103,6 +103,20 @@ async def is_admin_smashtheque(ctx):
     else:
         return False
 
+async def is_user_recurring_tournament_admin(ctx):
+    user = await ctx.bot.get_cog("Smashtheque").find_member_by_discord_id(ctx.author.id)
+    tournament = await ctx.bot.get_cog("Smashtheque").find_tournament_by_discord_id(ctx.guild.id)
+    if user is None:
+        await yeet(ctx, "Vous n'êtes pas enregistré dans la Smashthèque.")
+        return
+    if tournament is None:
+        await yeet(ctx, "Ce serveur Discord n'a pas de tournoi associé dans la Smashtèque")
+        return
+    for recurring_tournament in user["administrated_recurring_tournaments"]:
+        if recurring_tournament["id"] == tournament['id']:
+            return True
+    return False
+
 class Map(UserDict):
     def __getattr__(self, attr):
         val = self.data[attr]
@@ -263,6 +277,18 @@ class Smashtheque(commands.Cog):
             if response.status == 404:
                 return None
             tournament = await response.json()
+            return tournament
+
+    async def find_tournament_by_discord_id(self, discord_id):
+        request_url = f"{self.api_url('recurring_tournaments')}.json?by_discord_guild_discord_id={discord_id}"
+        async with self._session.get(request_url) as response:
+            if response.status == 404:
+                return None
+            tournaments = await response.json()
+            try:
+                tournament = tournaments[0]
+            except IndexError:
+                tournament = None
             return tournament
 
     async def find_location_by_name(self, name):
@@ -1115,6 +1141,25 @@ class Smashtheque(commands.Cog):
         await self.config.admins_smashtheque_id.set(admins)
         await ctx.send("Done !")
 
+    async def do_setnetwork(self, ctx, joueur, valide):
+        tournoi = self.find_tournament_by_discord_id(ctx.guild.id)
+        request_url = f"{self.api_url('recurring_tournaments')}/{tournoi['id']}/discord_users/{joueur.id}"
+        request_body = {
+            "has_good_network": bool(valide),
+            "certifier_discord_id": ctx.author.id
+        }
+        async with self._session.patch(request_url, json=request_body) as response:
+            if response.status != 200:
+                await generic_error(ctx,
+                                    f"error in command setnetwork : status code {response.status}, response : {response}")
+                print(response)
+                print(response.text)
+                return
+            else:
+                await self.show_confirmation(ctx,
+                                             f"L'évaluation de la connexion du joueur {joueur.mention}"
+                                             "a été envoyée avec succès pour ce tournoi.")
+
     # -------------------------------------------------------------------------
     # COMMANDS
     # -------------------------------------------------------------------------
@@ -1372,6 +1417,15 @@ class Smashtheque(commands.Cog):
     async def addadmin(self, ctx, member:discord.Member):
         try:
             await self.do_add_admin_smashtheque(ctx, member)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.check(is_user_recurring_tournament_admin)
+    @commands.command()
+    async def setnetwork(self, ctx, joueur:discord.Member, valide:int):
+        try:
+            await self.do_setnetwork(ctx, joueur, valide)
         except:
             rollbar.report_exc_info()
             raise
