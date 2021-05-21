@@ -344,6 +344,10 @@ class Smashtheque(commands.Cog):
     async def ask_choice(self, ctx, embed, elements_count):
         temp_message = await ctx.send(embed=embed)
         emojis = ReactionPredicate.NUMBER_EMOJIS[1:elements_count + 1]
+        emojis.append('❎')
+        print(emojis)
+        print(elements_count)
+
         start_adding_reactions(temp_message, emojis)
         pred = ReactionPredicate.with_emojis(emojis, temp_message)
         try:
@@ -352,6 +356,11 @@ class Smashtheque(commands.Cog):
             await ctx.send("Commande annulée")
             return None
         if type(pred.result) == int:
+            print(pred.result)
+            if pred.result == elements_count:
+                await temp_message.delete()
+                await ctx.send("Commande annulée")
+                return None
             await temp_message.delete()
             return pred.result
         return None
@@ -708,6 +717,8 @@ class Smashtheque(commands.Cog):
         )
         self.embed_players(embed, players, with_index=True)
         choice = await self.ask_choice(ctx, embed, len(players))
+        if choice == None:
+            return
         player = players[choice]
         if player["discord_id"] != None:
             await self.raise_message(ctx, "Il semblerait que ce joueur soit déjà associé à un compte Discord")
@@ -943,6 +954,8 @@ class Smashtheque(commands.Cog):
             for team_entry in player["administrated_teams"]:
                 embed.add_field(name=team_entry["short_name"], value=team_entry["name"])
             choice_result = await self.ask_choice(ctx, embed, len(player["administrated_teams"]))
+            if choice_result == None:
+                return
             team = await self.find_team_by_id(player["administrated_teams"][choice_result]["id"])
         embed = discord.Embed(title=f"Vous êtes sur le point de changer le {object_name} de la team {team['name']} pour :")
         embed.set_author(
