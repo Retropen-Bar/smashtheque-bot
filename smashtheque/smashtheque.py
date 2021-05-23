@@ -829,6 +829,43 @@ class Smashtheque(commands.Cog):
         team_ids.append(team_id)
         await self.update_player(ctx, player["id"], {"team_ids": team_ids})
 
+    async def do_force_add_team(self, ctx, player_id, team_short_name, remove):
+        player = await self.find_player_by_id(player_id)
+        if player == None:
+            await yeet(ctx, "Ce joueur n'existe pas !")
+            return
+        team_ids = player["team_ids"]
+        team = await self.find_team_by_short_name(team_short_name)
+        if team == None:
+            await self.raise_message(
+                ctx,
+                f"Cette team n'existe pas !"
+            )
+            return
+        team_id = team["id"]
+        if remove == False:
+            if team_id in team_ids:
+                await self.raise_message(
+                    ctx,
+                    f"Ce joueur est déjà membre de l'équipe {team_short_name}."
+                )
+                return
+            team_ids.append(team_id)
+            final_message = f"La team {team_short_name} a été ajouté au joueur."
+        else:
+            if team_ids == []:
+                await yeet(ctx, "Ce joueur n'a pas de teams !")
+                return
+            if team_id in team_ids:
+                team_ids.remove(team_id)
+            else:
+                await yeet(ctx, "Ce joueur n'est pas membre de cette team !")
+                return
+            final_message = f"La team {team_short_name} a été supprimé du joueur."
+
+        await self.update_player(ctx, player["id"], {"team_ids": team_ids})
+        await self.show_confirmation(ctx, final_message, link=f"{self.api_base_url}/players/{player_id}")
+
     async def do_listavailablecharacters(self, ctx):
 
         # fill characters cache if empty
@@ -1383,6 +1420,15 @@ class Smashtheque(commands.Cog):
     async def addadmin(self, ctx, member:discord.Member):
         try:
             await self.do_add_admin_smashtheque(ctx, member)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.check(is_admin_smashtheque)
+    @commands.command()
+    async def forceteam(self, ctx, smashtheque_user_id, short_team_name, remove:bool = False):
+        try:
+            await self.do_force_add_team(ctx, smashtheque_user_id, short_team_name, remove)
         except:
             rollbar.report_exc_info()
             raise
