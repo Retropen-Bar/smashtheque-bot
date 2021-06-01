@@ -462,7 +462,8 @@ class Smashtheque(commands.Cog):
                     if doit:
                         player["name_confirmation"] = True
                         await self.create_player(ctx, player)
-                elif "discord_user" in erreur.errors and erreur.errors["discord_user"] == ["already_taken"]:
+                        
+                elif "user_id" in erreur.errors and erreur.errors["user_id"] == ["already_taken"]:
                     await yeet(ctx, "Ce compte Discord est déjà relié à un autre joueur dans la Smashthèque.")
                     return
                 else:
