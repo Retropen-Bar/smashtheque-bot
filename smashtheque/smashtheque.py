@@ -443,7 +443,7 @@ class Smashtheque(commands.Cog):
             if r.status == 201:
                 # player creation wen fine
                 player_name = player["name"]
-                await self.show_confirmation(ctx, f"Le joueur {player_name} a été ajouté à la Smashthèque et est en attente de validation.")
+                await self.show_confirmation(ctx, f"Le joueur {player_name} a été ajouté et sera visible dans les listes sous peu (les commandes sur ce joueur sont tout de même faisables)")
                 return
 
             if r.status == 422:
