@@ -21,6 +21,7 @@ import unicodedata
 from collections.abc import Mapping
 from collections import UserDict
 from random import choice
+from typing import Optional
 
 def normalize_str(s):
     s1 = ''.join(
@@ -1094,31 +1095,39 @@ class Smashtheque(commands.Cog):
                 return
 
     async def do_insertedition(self, ctx, series_id, bracket):
-        tournament = await self.find_tournament_by_id(series_id)
-        print(tournament)
-        if not tournament:
-            await yeet(ctx, "Cette ID ne correspond à aucun tournoi.")
-            return
-        embed = discord.Embed(title=f"Vous êtes sur le point d'ajouter une édition au tournois {tournament['name']}", description="Confirmer ?")
+        embed_title_message = "Vous êtes sur le point d'ajouter un bracket" # Will be overriden if series id is present
+        if series_id:
+            tournament = await self.find_tournament_by_id(series_id)
+            print(tournament)
+            if not tournament:
+                await yeet(ctx, "Cette ID ne correspond à aucun tournoi.")
+                return
+            embed_title_message = f"Vous êtes sur le point d'ajouter une édition au tournois {tournament['name']}"
+        embed = discord.Embed(title=embed_title_message, description="Confirmer ?")
         embed.set_author(
             name="Smashthèque",
             icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
         )
         tournament_response = {
             "tournament_event": {
-                "recurring_tournament_id": series_id,
                 "bracket_url": bracket
             }
         }
+        if series_id: # add id to reply if present
+            tournament_response["recurring_tournament_id"] = series_id
         attachement = ctx.message.attachments
         if len(attachement) == 1:
             tournament_response["tournament_event"]["graph_url"] = attachement[0].url
         request_url = self.api_url("tournament_events")
+        print(tournament_response)
         async with self._session.post(request_url, json=tournament_response) as r:
+            print(r)
+            print(r.text)
+            response = await r.json()
             if r.status == 201:
-                await self.show_confirmation(ctx, f"Une édition a été crée avec succès.", link=f"{self.api_base_url}/tournament_events/{series_id}")
+                await self.show_confirmation(ctx, f"Une édition a été crée avec succès.", link=f"{self.api_base_url}/tournament_events/{response['id']}")
             elif r.status == 200:
-                await self.show_confirmation(ctx, f"Une édition a été modifié avec succès.", link=f"{self.api_base_url}/tournament_events/{series_id}")
+                await self.show_confirmation(ctx, f"Une édition a été modifié avec succès.", link=f"{self.api_base_url}/tournament_events/{response['id']}")
             elif r.status == 422:
                 await yeet(ctx, "Ce tournoi est déjà enregistré dans la Smashthèque.")
                 return
@@ -1379,8 +1388,18 @@ class Smashtheque(commands.Cog):
 
     @commands.check(is_admin_smashtheque)
     @commands.command()
-    async def inserertournoi(self, ctx, series_id, bracket):
-        """Cette commande permet aux TOs d'ajouter une édition de leur tournois dans la smashtheque"""
+    async def ajouttournoi(self, ctx, bracket, series_id: Optional[int]):
+        """
+        Cette commande permet aux joueurs d'ajouter une édition dans la smashthèque.\n
+        Vous pouvez ajouter l'ID de la série de tournoi, trouvable sur le site. (Exemple : `https://www.smashtheque.fr/recurring_tournaments/24`, l'ID du tournoi est donc ***24***)\n
+        Exemple : \n
+        - `s!ajouttournoi https://challonge.com/1qdse2zn 256`\n\n
+        Vous pouvez utiliser cette commande avec le lien du bracket seul pour ajouter le tournoi, mais cela laisse à l'équipe smashthèque la tâche de le lier à une série de tournoi.\n
+        Exemple :\n
+        - `s!ajouttournoi https://smash.gg/tournament/happy-smash-hour-8/event/smash-1v1/brackets/891100/1423529`\n\n
+        Enfin, vous pouvez ajouter le graph du tournoi en pièce jointe du message contenant la commande.
+        
+        """
         try:
             await self.do_insertedition(ctx, series_id, bracket)
         except:

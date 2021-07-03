@@ -34,7 +34,8 @@ class HelpFormatter(commands.RedHelpFormatter):
           f"`{ctx.clean_prefix}changerpseudo` pour changer votre pseudo\n"
           f"`{ctx.clean_prefix}chercherjoueur` pour chercher un joueur par son pseudo\n"
           f"`{ctx.clean_prefix}bracket` pour ajouter une édition à un tournoi dont vous êtes l'admin\n"
-          f"`{ctx.clean_prefix}annoncescircuit` pour suivre les annonces du 2v2 smashtheque series"
+          f"`{ctx.clean_prefix}annoncescircuit` pour suivre les annonces du 2v2 smashtheque series\n"
+          f"`{ctx.clean_prefix}ajouttournoi` pour ajouter un tournoi dont vous n'êtes pas l'admin"
         },
         {
           "name": "Pour créer un joueur :",
