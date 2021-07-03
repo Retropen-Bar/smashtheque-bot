@@ -1393,7 +1393,7 @@ class Smashtheque(commands.Cog):
         Cette commande permet aux joueurs d'ajouter une édition dans la smashthèque.\n
         Vous pouvez ajouter l'ID de la série de tournoi, trouvable sur le site. (Exemple : `https://www.smashtheque.fr/recurring_tournaments/24`, l'ID du tournoi est donc ***24***)\n
         Exemple : \n
-        - `s!ajouttournoi https://challonge.com/1qdse2zn 256`\n\n
+        - `s!ajouttournoi https://challonge.com/1qdse2zn 24`\n\n
         Vous pouvez utiliser cette commande avec le lien du bracket seul pour ajouter le tournoi, mais cela laisse à l'équipe smashthèque la tâche de le lier à une série de tournoi.\n
         Exemple :\n
         - `s!ajouttournoi https://smash.gg/tournament/happy-smash-hour-8/event/smash-1v1/brackets/891100/1423529`\n\n
