@@ -1386,12 +1386,11 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.check(is_admin_smashtheque)
     @commands.command()
     async def ajouttournoi(self, ctx, bracket, series_id: Optional[int]):
         """
         Cette commande permet aux joueurs d'ajouter une édition dans la smashthèque.\n
-        *Rappel :* Vous pouvez aussi effectuer cette action sur le site (https://smashtheque.fr)\n
+        *Rappel :* Vous pouvez aussi effectuer cette action sur le site (https://smashtheque.fr) en vous connectant.\n
         Vous pouvez utiliser cette commande avec le lien du bracket seul pour ajouter le tournoi. Si la série existe déjà, cela laisse à l'équipe smashthèque la tâche de le lier à la série de tournoi correspondante.\n
         Exemple :\n
         - `s!ajouttournoi https://smash.gg/tournament/happy-smash-hour-8/event/smash-1v1/brackets/891100/1423529`\n\n
