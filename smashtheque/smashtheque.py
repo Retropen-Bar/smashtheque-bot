@@ -1391,6 +1391,7 @@ class Smashtheque(commands.Cog):
     async def ajouttournoi(self, ctx, bracket, series_id: Optional[int]):
         """
         Cette commande permet aux joueurs d'ajouter une édition dans la smashthèque.\n
+        *Rappel :* Vous pouvez aussi effectuer cette action sur le site (https://smashtheque.fr)\n
         Vous pouvez ajouter l'ID de la série de tournoi, trouvable sur le site. (Exemple : `https://www.smashtheque.fr/recurring_tournaments/24`, l'ID du tournoi est donc ***24***)\n
         Exemple : \n
         - `s!ajouttournoi https://challonge.com/1qdse2zn 24`\n\n
