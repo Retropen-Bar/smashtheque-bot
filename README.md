@@ -1,3 +1,3 @@
 # smashtheque-bot
 
-ditching Red-discordbot on thus branch
+ditching Red-discordbot on this branch
