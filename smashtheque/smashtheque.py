@@ -1,10 +1,12 @@
 from discord.mentions import AllowedMentions
-from redbot.core import commands
+from discord.ext import commands
+
 from redbot.core.utils.predicates import ReactionPredicate
 from redbot.core.utils.menus import start_adding_reactions
 from redbot.core.utils.chat_formatting import humanize_list
 from redbot.core.utils.predicates import MessagePredicate
 from redbot.core import Config
+from redbot.core import commands as redCommands
 
 import discord
 import asyncio
@@ -22,6 +24,7 @@ from collections.abc import Mapping
 from collections import UserDict
 from random import choice
 from typing import Optional
+import inspect
 
 def normalize_str(s):
     s1 = ''.join(
@@ -98,11 +101,12 @@ def return_false(_):
     return False
 
 async def is_admin_smashtheque(ctx):
-    id_admins = await ctx.bot.get_cog("Smashtheque").config.admins_smashtheque_id()
-    if ctx.author.id in id_admins:
-        return True
-    else:
-        return False 
+    with open("config/admins.json", "r") as admins:
+        admins_json = json.load(admins)
+        if ctx.author.id in admins_json:
+            return True
+        else:
+            return False 
 
 class Map(UserDict):
     def __getattr__(self, attr):
@@ -115,41 +119,27 @@ class Error(Exception):
     """Base class for other exceptions"""
     pass
 
+
 class CharactersCacheNotFetched(Error):
     """Raised when the cache is not fetched yet"""
     pass
 
 
 class Smashtheque(commands.Cog):
-    async def initialize(self):
-        if 'ROLLBAR_TOKEN' in os.environ and os.environ['ROLLBAR_TOKEN']:
-            rollbar_token = os.environ['ROLLBAR_TOKEN']
-            if 'ROLLBAR_ENV' in os.environ and os.environ['ROLLBAR_ENV']:
-                rollbar_env = os.environ['ROLLBAR_ENV']
-            else:
-                rollbar_env = 'production'
-
+    def initialize(self):
+        print(os.environ)
+        rollbar_token = os.environ['ROLLBAR_TOKEN']
+        if 'ROLLBAR_ENV' in os.environ and os.environ['ROLLBAR_ENV']:
+            rollbar_env = os.environ['ROLLBAR_ENV']
         else:
-            rollbar_token = await self.bot.get_shared_api_tokens("smashtheque")
-            rollbar_token = rollbar_token["token"]
-            if 'environment' in rollbar_token:
-                rollbar_env = rollbar_token["environment"]
-            else:
-                rollbar_env = 'production'
+            rollbar_env = 'production'
+
         rollbar.init(rollbar_token, rollbar_env)
 
         try:
-            if 'SMASHTHEQUE_API_URL' in os.environ and os.environ['SMASHTHEQUE_API_URL']:
-                self.api_base_url = os.environ['SMASHTHEQUE_API_URL']
-            else:
-                api_base_url = await self.bot.get_shared_api_tokens("smashtheque")
-                self.api_base_url = api_base_url["url"]
+            self.api_base_url = os.environ['SMASHTHEQUE_API_URL']
             print(f"Smashthèque API base URL set to {self.api_base_url}")
-            if 'SMASHTHEQUE_API_TOKEN' in os.environ and os.environ['SMASHTHEQUE_API_TOKEN']:
-                bearer = os.environ['SMASHTHEQUE_API_TOKEN']
-            else:
-                bearer = await self.bot.get_shared_api_tokens("smashtheque")
-                bearer = bearer["bearer"]
+            bearer = os.environ['SMASHTHEQUE_API_TOKEN']
             headers = {
                 "Authorization": f"Bearer {bearer}",
                 "Content-Type": "application/json",
@@ -162,12 +152,11 @@ class Smashtheque(commands.Cog):
         except:
             rollbar.report_exc_info()
             raise
+        print("Smashthèque cog loaded")
 
-    def __init__(self, bot: Red):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.config = Config.get_conf(self, identifier=7653724657)
-        default_global = {"broadcast_channels_2v2" : [], "admins_smashtheque_id": []}
-        self.config.register_global(**default_global, force_registration=True)
+        self.initialize()
 
     def cog_unload(self):
         asyncio.create_task(self._session.close())
@@ -1132,8 +1121,7 @@ class Smashtheque(commands.Cog):
                 await yeet(ctx, "Ce tournoi est déjà enregistré dans la Smashthèque.")
                 return
 
-
-    async def do_add_broadcast_channel(self, ctx, salon:discord.TextChannel):
+    """async def do_add_broadcast_channel(self, ctx, salon:discord.TextChannel):
         if not salon.permissions_for(ctx.me).send_messages:
             await yeet(ctx, "Le bot n'a pas la permission d'envoyer des messages dans ce channel !")
             return
@@ -1141,9 +1129,9 @@ class Smashtheque(commands.Cog):
         channels.append(
             {'guild': ctx.guild.name, 'guild_id': ctx.guild.id, "channel": salon.id})
         await self.config.broadcast_channels_2v2.set(channels)
-        await self.show_confirmation(ctx, f"Les annonces du circuit 2v2 smashtheque series seront envoyés dans le channel {salon.mention}.\nSi vous ne voulez plus recevoir d'annonces, utilisez la commande `{ctx.clean_prefix}unbroadcast`")
-    
-    async def do_remove_broadcast_channel(self, ctx):
+        await self.show_confirmation(ctx, f"Les annonces du circuit 2v2 smashtheque series seront envoyés dans le channel {salon.mention}.\nSi vous ne voulez plus recevoir d'annonces, utilisez la commande `{ctx.clean_prefix}unbroadcast`")"""   
+
+    """async def do_remove_broadcast_channel(self, ctx):
         channels = await self.config.broadcast_channels_2v2()
         guild = loop_dict(channels, 'guild_id', ctx.guild.id)
         print(guild) 
@@ -1152,9 +1140,9 @@ class Smashtheque(commands.Cog):
             return
         channels.pop(channels.index(guild))
         await self.config.broadcast_channels_2v2.set(channels)
-        await self.show_confirmation(ctx, "Les annonces du circuit 2v2 smashtheque series ne seront plus envoyés dans ce channel")
+        await self.show_confirmation(ctx, "Les annonces du circuit 2v2 smashtheque series ne seront plus envoyés dans ce channel")"""
 
-    async def do_broadcast_message(self, ctx, message):
+    """async def do_broadcast_message(self, ctx, message):
         channels = await self.config.broadcast_channels_2v2()
         count = 0
         for guild in channels:
@@ -1165,12 +1153,13 @@ class Smashtheque(commands.Cog):
             else:
                 count += 1
 
-        await ctx.send(f"Message envoyé dans {count} serveurs")
+        await ctx.send(f"Message envoyé dans {count} serveurs")"""
     
     async def do_add_admin_smashtheque(self, ctx, member):
-        admins = await self.config.admins_smashtheque_id()
-        admins.append(member.id)
-        await self.config.admins_smashtheque_id.set(admins)
+        with open("config/admins.json", "w") as admins:
+            admins_json = json.load(admins)
+            admins_json.append(member.id)
+            json.dump(admins_json, admins)
         await ctx.send("Done !")
 
     # -------------------------------------------------------------------------
@@ -1406,7 +1395,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.bot_in_a_guild()
+    """@commands.bot_in_a_guild()
     @commands.has_permissions(manage_channels=True)
     @commands.command()
     async def annoncescircuit(self, ctx, salon:discord.TextChannel):
@@ -1414,9 +1403,9 @@ class Smashtheque(commands.Cog):
             await self.do_add_broadcast_channel(ctx, salon)
         except:
             rollbar.report_exc_info()
-            raise
+            raise"""
 
-    @commands.bot_in_a_guild()
+    """@commands.bot_in_a_guild()
     @commands.has_permissions(manage_channels=True)   
     @commands.command()
     async def unbroadcast(self, ctx):
@@ -1424,16 +1413,16 @@ class Smashtheque(commands.Cog):
             await self.do_remove_broadcast_channel(ctx)
         except:
             rollbar.report_exc_info()
-            raise
+            raise"""
 
-    @commands.check(is_admin_smashtheque)
+    """@commands.check(is_admin_smashtheque)
     @commands.command()
     async def broadcast(self, ctx, *, message):
         try:
             await self.do_broadcast_message(ctx, message)
         except:
             rollbar.report_exc_info()
-            raise
+            raise"""
 
     @commands.is_owner()
     @commands.command()
@@ -1452,3 +1441,5 @@ class Smashtheque(commands.Cog):
         except:
             rollbar.report_exc_info()
             raise
+
+    
