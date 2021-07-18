@@ -11,6 +11,7 @@ from redbot.core.i18n import set_contextual_locale
 import os
 
 from smashtheque.smashtheque import Smashtheque
+from error_handler import CommandErrorHandler
 
 # make a minimalist bot with cogs
 client = commands.Bot(command_prefix='&')
@@ -20,4 +21,5 @@ client = commands.Bot(command_prefix='&')
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 
 client.add_cog(Smashtheque(client))
+client.add_cog(CommandErrorHandler(client))
 client.run(BOT_TOKEN)
