@@ -66,11 +66,13 @@ class CommandErrorHandler(commands.Cog):
                 pass
 
         elif isinstance(error, commands.MissingRequiredArgument):
-            embed = discord.Embed(title=f"\u200b", description=f"```Syntaxe : {self.get_command_signature(ctx, ctx.command)}```\n{ctx.command.help}", color=0xFF0000)
+            embed = discord.Embed(description=f"```Syntaxe : {self.get_command_signature(ctx, ctx.command)}```\n{ctx.command.help}", color=0xFF0000)
             embed.set_author(name="Aide Smashthèque", icon_url=ctx.me.avatar)
+            embed.set_footer(text="Avec ❤️ par les admins Smashthèque - s!help pour plus d'informations")
             await ctx.send(embed=embed)
 
         else:
             # All other Errors not returned come here. And we can just print the default TraceBack.
             print('Ignoring exception in command {}:'.format(ctx.command), file=sys.stderr)
             traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)
+            
