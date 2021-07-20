@@ -5,8 +5,9 @@ from redbot.core.utils.predicates import ReactionPredicate
 from redbot.core.utils.menus import start_adding_reactions
 from redbot.core.utils.chat_formatting import humanize_list
 from redbot.core.utils.predicates import MessagePredicate
-from redbot.core import Config
 from redbot.core import commands as redCommands
+
+from interactions.views import AskConfirmation
 
 import discord
 import asyncio
@@ -126,8 +127,7 @@ class CharactersCacheNotFetched(Error):
 
 
 class Smashtheque(commands.Cog):
-    def initialize(self):
-        print(os.environ)
+    async def initialize(self):
         rollbar_token = os.environ['ROLLBAR_TOKEN']
         if 'ROLLBAR_ENV' in os.environ and os.environ['ROLLBAR_ENV']:
             rollbar_env = os.environ['ROLLBAR_ENV']
@@ -138,6 +138,7 @@ class Smashtheque(commands.Cog):
 
         try:
             self.api_base_url = os.environ['SMASHTHEQUE_API_URL']
+            self.api_base_url = "https://www.smashtheque.fr"
             print(f"Smashthèque API base URL set to {self.api_base_url}")
             bearer = os.environ['SMASHTHEQUE_API_TOKEN']
             headers = {
@@ -156,7 +157,7 @@ class Smashtheque(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.initialize()
+        bot.loop.create_task(self.initialize())
 
     def cog_unload(self):
         asyncio.create_task(self._session.close())
@@ -171,7 +172,6 @@ class Smashtheque(commands.Cog):
         return is_emoji(v) or self.is_character_name(v)
 
     async def fetch_characters(self):
-        print('fetch_characters')
         async with self._session.get(self.api_url("characters")) as response:
             characters = await response.json()
             # puts values in cache before responding
@@ -312,25 +312,6 @@ class Smashtheque(commands.Cog):
     async def raise_not_linked(self, ctx):
         await self.raise_message(ctx, f"Votre compte Discord n'est associé à aucun joueur.\nUtilisez `{ctx.clean_prefix}jesuis` pour associer votre compte à un joueur.")
 
-    async def ask_confirmation(self, ctx, embed):
-        temp_message = await ctx.send(embed=embed)
-        pred = ReactionPredicate.yes_or_no(temp_message, ctx.author)
-        start_adding_reactions(
-            temp_message, ReactionPredicate.YES_OR_NO_EMOJIS
-        )
-        try:
-            await self.bot.wait_for("reaction_add", timeout=60.0, check=pred)
-        except asyncio.TimeoutError:
-            await ctx.send("Commande annulée")
-            return False
-        if pred.result is True:
-            await temp_message.delete()
-            return True
-        else:
-            await ctx.send("Commande annulée")
-            await temp_message.delete()
-            return False
-
     async def ask_choice(self, ctx, embed, elements_count):
         temp_message = await ctx.send(embed=embed)
         emojis = ReactionPredicate.NUMBER_EMOJIS[1:elements_count + 1]
@@ -420,14 +401,12 @@ class Smashtheque(commands.Cog):
             title="Vous allez créer le joueur suivant :",
             colour=discord.Colour.blue(),
         )
-        embed.set_footer(text="Réagissez avec ✅ pour confirmer et créer ce joueur, ou réagissez avec ❎ pour annuler.")
         self.embed_player(embed, player)
-        doit = await self.ask_confirmation(ctx, embed)
+        doit = await AskConfirmation.ask_confirmation(ctx, embed)
         if doit:
             await self.create_player(ctx, player)
 
     async def create_player(self, ctx, player):
-        print(f"create player {player}")
         payload = {"player": player}
         async with self._session.post(self.api_url("players"), json=payload) as r:
             if r.status == 201:
@@ -448,7 +427,7 @@ class Smashtheque(commands.Cog):
                     )
                     embed.set_footer(text="Réagissez avec ✅ pour confirmer et créer un nouveau joueur, ou\nréagissez avec ❎ pour annuler.")
                     self.embed_players(embed, alts)
-                    doit = await self.ask_confirmation(ctx, embed)
+                    doit = await AskConfirmation.ask_confirmation(ctx, embed)
                     if doit:
                         player["name_confirmation"] = True
                         await self.create_player(ctx, player)
@@ -483,7 +462,7 @@ class Smashtheque(commands.Cog):
                     )
                     embed.set_footer(text="Réagissez avec ✅ pour confirmer et mettre à jour, ou\nréagissez avec ❎ pour annuler.")
                     self.embed_players(embed, alts)
-                    doit = await self.ask_confirmation(ctx, embed)
+                    doit = await AskConfirmation.ask_confirmation(ctx, embed)
                     if doit:
                         data["name_confirmation"] = True
                         await self.update_player(ctx, player_id, data)
@@ -690,7 +669,7 @@ class Smashtheque(commands.Cog):
                 colour=discord.Colour.blue()
             )
             self.embed_player(embed, player)
-            doit = await self.ask_confirmation(ctx, embed)
+            doit = await AskConfirmation.ask_confirmation(ctx, embed)
             if not doit:
                 return
             if player["discord_id"] != None:
@@ -727,7 +706,7 @@ class Smashtheque(commands.Cog):
         embed = discord.Embed(title="Un joueur est associé à ce compte discord. Voulez vous le dissocier ?")
         embed.set_footer(text="Réagissez avec ✅ pour confirmer et dissocier ce compte du joueur, ou\nréagissez avec ❎ pour annuler.")
         self.embed_player(embed, player)
-        doit = await self.ask_confirmation(ctx, embed)
+        doit = await AskConfirmation.ask_confirmation(ctx, embed)
         if not doit:
             return
         await self.update_player(ctx, player["id"], {"discord_id": None})
@@ -991,7 +970,7 @@ class Smashtheque(commands.Cog):
         icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
         )
         embed.set_image(url=ctx.message.attachments[0].url)
-        confirmation = await self.ask_confirmation(ctx, embed)
+        confirmation = await AskConfirmation.ask_confirmation(ctx, embed)
         if not confirmation:
             return
         request_url = f"{self.api_url('teams')}/{team['id']}/"
@@ -1062,7 +1041,7 @@ class Smashtheque(commands.Cog):
             icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
         )
         embed.set_footer(text="Vous pouvez ajouter l'url du tournois, la commande ainsi que le graph du tournois dans un seul")
-        if not await self.ask_confirmation(ctx, embed):
+        if not await AskConfirmation.ask_confirmation(ctx, embed):
             await ctx.send("Commande annulée.")
             return
         tournament_response = {
