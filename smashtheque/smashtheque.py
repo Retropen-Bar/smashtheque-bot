@@ -7,8 +7,9 @@ from redbot.core.utils.chat_formatting import humanize_list
 from redbot.core.utils.predicates import MessagePredicate
 from redbot.core import commands as redCommands
 
-from interactions.views import AskConfirmation
+from interactions import st_views
 
+import utils
 import discord
 import asyncio
 import aiohttp
@@ -134,7 +135,7 @@ class Smashtheque(commands.Cog):
         else:
             rollbar_env = 'production'
 
-        rollbar.init(rollbar_token, rollbar_env)
+        ##rollbar.init(rollbar_token, rollbar_env)
 
         try:
             self.api_base_url = os.environ['SMASHTHEQUE_API_URL']
@@ -402,7 +403,7 @@ class Smashtheque(commands.Cog):
             colour=discord.Colour.blue(),
         )
         self.embed_player(embed, player)
-        doit = await AskConfirmation.ask_confirmation(ctx, embed)
+        doit = await st_views.ask_confirmation(ctx, embed)
         if doit:
             await self.create_player(ctx, player)
 
@@ -427,7 +428,7 @@ class Smashtheque(commands.Cog):
                     )
                     embed.set_footer(text="Réagissez avec ✅ pour confirmer et créer un nouveau joueur, ou\nréagissez avec ❎ pour annuler.")
                     self.embed_players(embed, alts)
-                    doit = await AskConfirmation.ask_confirmation(ctx, embed)
+                    doit = await st_views.ask_confirmation(ctx, embed)
                     if doit:
                         player["name_confirmation"] = True
                         await self.create_player(ctx, player)
@@ -462,7 +463,7 @@ class Smashtheque(commands.Cog):
                     )
                     embed.set_footer(text="Réagissez avec ✅ pour confirmer et mettre à jour, ou\nréagissez avec ❎ pour annuler.")
                     self.embed_players(embed, alts)
-                    doit = await AskConfirmation.ask_confirmation(ctx, embed)
+                    doit = await st_views.ask_confirmation(ctx, embed)
                     if doit:
                         data["name_confirmation"] = True
                         await self.update_player(ctx, player_id, data)
@@ -669,7 +670,7 @@ class Smashtheque(commands.Cog):
                 colour=discord.Colour.blue()
             )
             self.embed_player(embed, player)
-            doit = await AskConfirmation.ask_confirmation(ctx, embed)
+            doit = await st_views.ask_confirmation(ctx, embed)
             if not doit:
                 return
             if player["discord_id"] != None:
@@ -686,7 +687,7 @@ class Smashtheque(commands.Cog):
             colour=discord.Colour.blue()
         )
         self.embed_players(embed, players, with_index=True)
-        choice = await self.ask_choice(ctx, embed, len(players))
+        choice = await st_views.ask_choice(ctx, embed, players)
         if choice == None:
             return
         player = players[choice]
@@ -706,7 +707,7 @@ class Smashtheque(commands.Cog):
         embed = discord.Embed(title="Un joueur est associé à ce compte discord. Voulez vous le dissocier ?")
         embed.set_footer(text="Réagissez avec ✅ pour confirmer et dissocier ce compte du joueur, ou\nréagissez avec ❎ pour annuler.")
         self.embed_player(embed, player)
-        doit = await AskConfirmation.ask_confirmation(ctx, embed)
+        doit = await st_views.ask_confirmation(ctx, embed)
         if not doit:
             return
         await self.update_player(ctx, player["id"], {"discord_id": None})
@@ -960,7 +961,7 @@ class Smashtheque(commands.Cog):
             embed = discord.Embed(title="Vous âtes administrateur de plusieurs teams. ", description=f"De quelle team faut-il modifier le {object_name} ?")
             for team_entry in player["administrated_teams"]:
                 embed.add_field(name=team_entry["short_name"], value=team_entry["name"])
-            choice_result = await self.ask_choice(ctx, embed, len(player["administrated_teams"]))
+            choice_result = await st_views.ask_choice(ctx, embed, player["administrated_teams"])
             if choice_result == None:
                 return
             team = await self.find_team_by_id(player["administrated_teams"][choice_result]["id"])
@@ -970,7 +971,7 @@ class Smashtheque(commands.Cog):
         icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
         )
         embed.set_image(url=ctx.message.attachments[0].url)
-        confirmation = await AskConfirmation.ask_confirmation(ctx, embed)
+        confirmation = await st_views.ask_confirmation(ctx, embed)
         if not confirmation:
             return
         request_url = f"{self.api_url('teams')}/{team['id']}/"
@@ -1000,12 +1001,16 @@ class Smashtheque(commands.Cog):
 
         #selecting the right tournament
         if len(player["administrated_recurring_tournaments"]) > 1:
-            embed = discord.Embed(title="Vous êtes administrateur de plusieurs tournois.", description=f"Quel est le tournoi concerné ?")
-            idx = 0
-            for tournament_entry in player["administrated_recurring_tournaments"]:
-                embed.add_field(name=(1+idx), value=tournament_entry["name"], inline=False)
+            idx = 1
+            admin_recuring_tournaments = player["administrated_recurring_tournaments"].copy()
+            descript = ">>> " + admin_recuring_tournaments[0]["name"]
+            admin_recuring_tournaments.pop(0)
+            for tournament_entry in admin_recuring_tournaments:
+                descript += f"\n\n" + tournament_entry["name"]
                 idx += 1
-            choice = await self.ask_choice(ctx, embed, len(player["administrated_recurring_tournaments"]))
+            embed = discord.Embed(title="Vous êtes administrateur de plusieurs tournois. Quel est le tournoi concerné ?", description=descript, color=0x2f2136)
+            
+            choice = await st_views.ask_choice(ctx, embed, player["administrated_recurring_tournaments"])
             if choice == None:
                 return
             tournament = await self.find_tournament_by_id(player["administrated_recurring_tournaments"][choice]["id"])
@@ -1041,7 +1046,7 @@ class Smashtheque(commands.Cog):
             icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
         )
         embed.set_footer(text="Vous pouvez ajouter l'url du tournois, la commande ainsi que le graph du tournois dans un seul")
-        if not await AskConfirmation.ask_confirmation(ctx, embed):
+        if not await st_views.ask_confirmation(ctx, embed):
             await ctx.send("Commande annulée.")
             return
         tournament_response = {
@@ -1100,40 +1105,6 @@ class Smashtheque(commands.Cog):
                 await yeet(ctx, "Ce tournoi est déjà enregistré dans la Smashthèque.")
                 return
 
-    """async def do_add_broadcast_channel(self, ctx, salon:discord.TextChannel):
-        if not salon.permissions_for(ctx.me).send_messages:
-            await yeet(ctx, "Le bot n'a pas la permission d'envoyer des messages dans ce channel !")
-            return
-        channels = await self.config.broadcast_channels_2v2()
-        channels.append(
-            {'guild': ctx.guild.name, 'guild_id': ctx.guild.id, "channel": salon.id})
-        await self.config.broadcast_channels_2v2.set(channels)
-        await self.show_confirmation(ctx, f"Les annonces du circuit 2v2 smashtheque series seront envoyés dans le channel {salon.mention}.\nSi vous ne voulez plus recevoir d'annonces, utilisez la commande `{ctx.clean_prefix}unbroadcast`")"""   
-
-    """async def do_remove_broadcast_channel(self, ctx):
-        channels = await self.config.broadcast_channels_2v2()
-        guild = loop_dict(channels, 'guild_id', ctx.guild.id)
-        print(guild) 
-        if guild is None:
-            await yeet(ctx, "Aucun channel d'annonces n'est définit pour ce serveur.")
-            return
-        channels.pop(channels.index(guild))
-        await self.config.broadcast_channels_2v2.set(channels)
-        await self.show_confirmation(ctx, "Les annonces du circuit 2v2 smashtheque series ne seront plus envoyés dans ce channel")"""
-
-    """async def do_broadcast_message(self, ctx, message):
-        channels = await self.config.broadcast_channels_2v2()
-        count = 0
-        for guild in channels:
-            try:
-                await self.bot.get_guild(guild["guild_id"]).get_channel(guild["channel"]).send(message)
-            except:
-                await ctx.send(f"Message non envoyé dans {guild['guild']}")
-            else:
-                count += 1
-
-        await ctx.send(f"Message envoyé dans {count} serveurs")"""
-    
     async def do_add_admin_smashtheque(self, ctx, member):
         with open("config/admins.json", "w") as admins:
             admins_json = json.load(admins)
@@ -1373,35 +1344,6 @@ class Smashtheque(commands.Cog):
         except:
             rollbar.report_exc_info()
             raise
-
-    """@commands.bot_in_a_guild()
-    @commands.has_permissions(manage_channels=True)
-    @commands.command()
-    async def annoncescircuit(self, ctx, salon:discord.TextChannel):
-        try:
-            await self.do_add_broadcast_channel(ctx, salon)
-        except:
-            rollbar.report_exc_info()
-            raise"""
-
-    """@commands.bot_in_a_guild()
-    @commands.has_permissions(manage_channels=True)   
-    @commands.command()
-    async def unbroadcast(self, ctx):
-        try:
-            await self.do_remove_broadcast_channel(ctx)
-        except:
-            rollbar.report_exc_info()
-            raise"""
-
-    """@commands.check(is_admin_smashtheque)
-    @commands.command()
-    async def broadcast(self, ctx, *, message):
-        try:
-            await self.do_broadcast_message(ctx, message)
-        except:
-            rollbar.report_exc_info()
-            raise"""
 
     @commands.is_owner()
     @commands.command()
