@@ -313,30 +313,6 @@ class Smashtheque(commands.Cog):
     async def raise_not_linked(self, ctx):
         await self.raise_message(ctx, f"Votre compte Discord n'est associé à aucun joueur.\nUtilisez `{ctx.clean_prefix}jesuis` pour associer votre compte à un joueur.")
 
-    async def ask_choice(self, ctx, embed, elements_count):
-        temp_message = await ctx.send(embed=embed)
-        emojis = ReactionPredicate.NUMBER_EMOJIS[1:elements_count + 1]
-        emojis.append('❎')
-        print(emojis)
-        print(elements_count)
-
-        start_adding_reactions(temp_message, emojis)
-        pred = ReactionPredicate.with_emojis(emojis, temp_message)
-        try:
-            await ctx.bot.wait_for("reaction_add", timeout=60.0, check=pred)
-        except asyncio.TimeoutError:
-            await ctx.send("Commande annulée")
-            return None
-        if type(pred.result) == int:
-            print(pred.result)
-            if pred.result == elements_count:
-                await temp_message.delete()
-                await ctx.send("Commande annulée")
-                return None
-            await temp_message.delete()
-            return pred.result
-        return None
-
     async def show_confirmation(self, ctx, message, link=None):
         embed = discord.Embed(
             title="I guess it's done!",
