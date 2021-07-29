@@ -93,6 +93,9 @@ def is_emoji(v):
 def match_url(v):
     return re.match(r"^((http[s]?|ftp):\/)?\/?([^:\/\s]+)((\/\w+)*\/)([\w\-\.]+[^#?\s]+)(.*)?(#[\w\-]+)?$", v)
 
+def is_mention(v):
+    return re.match(r"<@[!]?\d*>", v)
+
 def return_false(_):
     """this method is here to always return False on a check, so no one is allowed to run a command, but it can be overwritten later"""
     return False
@@ -676,6 +679,8 @@ class Smashtheque(commands.Cog):
         # now the player is filled with attributes
         response["creator_discord_id"] = str(ctx.author.id)
         response["name"] = response["name"].rstrip()
+        if is_mention(response["name"]):
+            yeet(ctx, "Assurez vous que vous entrez un pseudo au lieu de mentionner le joueur. Pour associer ce joueur avec un compte discord, ajoutez son ID en dernier argument")
         await self.confirm_create_player(ctx, response)
 
     async def do_link(self, ctx, pseudo, discord_id):
