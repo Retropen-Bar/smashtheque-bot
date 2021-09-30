@@ -1,11 +1,10 @@
 from discord.mentions import AllowedMentions
 from discord.ext import commands
 
-from redbot.core.utils.predicates import ReactionPredicate
-from redbot.core.utils.menus import start_adding_reactions
-from redbot.core.utils.chat_formatting import humanize_list
-from redbot.core.utils.predicates import MessagePredicate
-from redbot.core import commands as redCommands
+
+#from redbot.core.utils.predicates import MessagePredicate
+
+##################### WARNING : COMMENTING OUT THE LINE UP BREAKS THE TOURNAMENT COMMAND ##################
 
 from interactions import st_views
 
@@ -13,7 +12,6 @@ import utils
 import discord
 import asyncio
 import aiohttp
-from redbot.core.bot import Red
 from typing import Optional
 import re
 import json
@@ -346,7 +344,7 @@ class Smashtheque(commands.Cog):
 
         player_name = player.name
         if with_index:
-            player_name = ReactionPredicate.NUMBER_EMOJIS[index] + " " + player_name
+            player_name = utils.emojis.NUMBER_EMOJIS[index] + " " + player_name
         embed.add_field(name=player_name, value="".join(personnages), inline=True)
 
         team_names = []

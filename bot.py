@@ -3,10 +3,6 @@ from discord import client
 import discord
 from discord.ext import commands
 
-from redbot.core import commands as redCommands
-
-from babel import Locale as BabelLocale, UnknownLocaleError
-from redbot.core.i18n import set_contextual_locale
 
 import os
 

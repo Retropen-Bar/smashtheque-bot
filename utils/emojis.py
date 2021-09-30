@@ -8,4 +8,9 @@ number_emojis = [
     "<:icon_4:867157147308916756>"
 ]
 
+#stolen from Red's reaction predicaments
+NUMBER_EMOJIS = [
+    chr(code) + "\N{COMBINING ENCLOSING KEYCAP}" for code in range(ord("0"), ord("9") + 1)
+]
+
 cancel_emoji = "<:cancel:867185099249287189>"
