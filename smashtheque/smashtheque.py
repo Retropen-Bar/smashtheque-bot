@@ -1,3 +1,4 @@
+from discord.app.commands import option
 from discord.mentions import AllowedMentions
 from discord.ext import commands
 
@@ -12,7 +13,6 @@ import utils
 import discord
 import asyncio
 import aiohttp
-from typing import Optional
 import re
 import json
 import math
@@ -157,6 +157,13 @@ class Smashtheque(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         bot.loop.create_task(self.initialize())
+        self.set_autocomplete_functions()
+
+    def set_autocomplete_functions(self):
+        """To autocomplete the st name, we need aiohttp, but by just using a normal autocomplete, we can't access the session
+        So, instead, we set here the arguments. 
+        When adding a command that uses the session, or anything else in the Cog object, it need to be registered here"""
+        self.jesuis.options[0].autocomplete = self.autocomplete_st_name
 
     def cog_unload(self):
         asyncio.create_task(self._session.close())
@@ -299,6 +306,18 @@ class Smashtheque(commands.Cog):
         async with self._session.get(request_url) as response:
             player = await response.json()
             return player if player != [] else None
+
+    async def autocomplete_st_name(self, name):
+        print("method")
+        url = self.api_url("players") + "?by_keyword=" + name
+        async with self._session.get(url) as resp:
+            if resp.status == 200:
+                r = await resp.json()
+                return [p["name"] for p in r]
+            else:
+                print("SERVER ROOM ON FIRE")
+                return None
+
 
     async def raise_message(self, ctx, message):
         embed = discord.Embed(title=message)
@@ -1128,8 +1147,9 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<pseudo>")
-    async def jesuis(self, ctx, *, pseudo):
+    @commands.slash_command(guild_ids=[737431333478989907])
+    @discord.option("pseudo", str)
+    async def jesuis(self, ctx,  pseudo):
         """cette commande va vous permettre d'associer votre compte Discord à un joueur de la Smashthèque.
         \n\nVous devez préciser un pseudo.
         \n\n\nExemples : \n- jesuis Pixel\n- jesuis red\n"""
@@ -1198,8 +1218,8 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<nouveau pseudo>")
-    async def changerpseudo(self, ctx, *, name):
+    @commands.slash_command(guild_ids=[737431333478989907])
+    async def changerpseudo(self, ctx, name:str):
         try:
             await self.do_editname(ctx, ctx.author.id, name)
         except:
