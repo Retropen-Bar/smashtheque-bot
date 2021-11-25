@@ -1,4 +1,3 @@
-from discord.app.commands import option
 from discord.mentions import AllowedMentions
 from discord.ext import commands
 
@@ -10,6 +9,7 @@ from discord.ext import commands
 from interactions import st_views
 
 import utils
+from utils.responses import respond_or_edit
 import discord
 import asyncio
 import aiohttp
@@ -45,7 +45,7 @@ async def yeet(ctx, erreur):
         name="Smashthèque",
         icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
     )
-    await ctx.send(embed=embed)
+    await ctx.respond(embed=embed)
 
 async def uniqueyeet(ctx, erreur, playername):
     """lever des erreurs en ajoutant le nom du joueur"""
@@ -60,7 +60,7 @@ async def uniqueyeet(ctx, erreur, playername):
         name="Smashthèque",
         icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
     )
-    await ctx.send(embed=embed)
+    await ctx.respond(embed=embed)
 
 async def generic_error(ctx, error):
     await yeet(ctx, "T'as cassé le bot, GG. Tu peux contacter <@332894758076678144> ou <@608210202952466464> s'il te plaît ?")
@@ -295,6 +295,13 @@ class Smashtheque(commands.Cog):
                 return players[0]
             return None
 
+    async def find_players_by_name(self, name):
+        request_url = "{0}?by_name={1}".format(self.api_url("players"), name)
+        async with self._session.get(request_url) as response:
+            players = await response.json()
+            return players
+
+
     async def find_players_by_name_like(self, name):
         request_url = "{0}?by_name_like={1}".format(self.api_url("players"), name)
         async with self._session.get(request_url) as response:
@@ -307,13 +314,14 @@ class Smashtheque(commands.Cog):
             player = await response.json()
             return player if player != [] else None
 
-    async def autocomplete_st_name(self, name):
-        print("method")
-        url = self.api_url("players") + "?by_keyword=" + name
+    async def autocomplete_st_name(self, interaction):
+        print(interaction)
+        return ['red']
+        url = self.api_url("players") + "?by_keyword=" + interaction.value
         async with self._session.get(url) as resp:
             if resp.status == 200:
                 r = await resp.json()
-                return [p["name"] for p in r]
+                return list(dict.fromkeys([p["name"] for p in r])) # remove any duplicates from list
             else:
                 print("SERVER ROOM ON FIRE")
                 return None
@@ -325,7 +333,7 @@ class Smashtheque(commands.Cog):
             name="Smashthèque",
             icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
         )
-        await ctx.send(embed=embed)
+        await ctx.respond(embed=embed)
 
     async def raise_not_linked(self, ctx):
         await self.raise_message(ctx, f"Votre compte Discord n'est associé à aucun joueur.\nUtilisez `{ctx.clean_prefix}jesuis` pour associer votre compte à un joueur.")
@@ -338,7 +346,7 @@ class Smashtheque(commands.Cog):
         )
         if link:
             embed.add_field(name=link, value="\u200b")
-        await ctx.send(embed=embed)
+        await ctx.respond(embed=embed)
 
     def embed_players(self, embed, players, with_index=False):
         idx = 0
@@ -441,7 +449,7 @@ class Smashtheque(commands.Cog):
             if r.status == 200:
                 embed = discord.Embed(title="Joueur mis à jour :")
                 self.embed_player(embed, await r.json())
-                await ctx.send(embed=embed)
+                await ctx.respond(embed=embed)
                 return
 
             if r.status == 422:
@@ -469,21 +477,21 @@ class Smashtheque(commands.Cog):
 
     async def complete_bracket_link(self, ctx, tournament):
 
-        await ctx.send(f"**Lien du bracket pour l'édition du tournoi {tournament['name']} ?** (envoyez stop pour annuler)")
+        await ctx.respond(f"**Lien du bracket pour l'édition du tournoi {tournament['name']} ?** (envoyez stop pour annuler)")
         try:
             message = await self.bot.wait_for('message', timeout=120.0, check=MessagePredicate.same_context(ctx))
         except asyncio.TimeoutError:
-            await ctx.send("commande annulée.")
+            await ctx.respond("commande annulée.")
             return None
         else:
             if message.content.lower() in ["stop", "annuler", "cancel"]:
-                await ctx.send("commande annulée.")
+                await ctx.respond("commande annulée.")
                 return None
             return message.content
 
     async def complete_tournament_graph(self, ctx):
         """no idea how to check if the tournament has a graph"""
-        await ctx.send("Si votre tournois possède un graph, veuillez réutiliser la même commande avec le lien du tournois comme argument, et le graph comme attachement.")
+        await ctx.respond("Si votre tournois possède un graph, veuillez réutiliser la même commande avec le lien du tournois comme argument, et le graph comme attachement.")
         return
 
     async def do_createlocation(self, ctx, name, country=False):
@@ -640,15 +648,16 @@ class Smashtheque(commands.Cog):
         response["name"] = response["name"].rstrip()
         await self.confirm_create_player(ctx, response)
 
-    async def do_link(self, ctx, pseudo, discord_id):
-        player = await self.find_player_by_discord_id(discord_id)
+    async def do_link(self, ctx:discord.ApplicationContext, pseudo, discord_id):
+        """player = await self.find_player_by_discord_id(discord_id)
         if player != None:
             embed = discord.Embed(title="Un joueur est déjà associé à ce compte Discord. Contactez un admin pour dissocier ce compte Discord de ce joueur.")
             self.embed_player(embed, player)
-            await ctx.send(embed=embed)
-            return
+            await ctx.respond(embed=embed)
+            return"""
 
-        players = await self.find_players_by_name_like(pseudo)
+        players = await self.find_players_by_name(pseudo)
+        await respond_or_edit(ctx, text="sending ...")
 
         # no player found
         if len(players) == 0:
@@ -719,7 +728,7 @@ class Smashtheque(commands.Cog):
             colour=discord.Colour.green(),
         )
         self.embed_player(embed, player)
-        await ctx.send(embed=embed)
+        await ctx.respond(embed=embed)
 
     async def do_findplayer(self, ctx, name):
         players = await self.find_players_by_name_like(name)
@@ -742,7 +751,7 @@ class Smashtheque(commands.Cog):
                 colour=discord.Colour.green()
             )
             self.embed_players(embed, players)
-        await ctx.send(embed=embed)
+        await ctx.respond(embed=embed)
         return
 
     async def do_editname(self, ctx, discord_id, new_name):
@@ -859,7 +868,7 @@ class Smashtheque(commands.Cog):
                 name="Smashthèque",
                 icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
             )
-            message_list.append(await ctx.send(embed=embed))
+            message_list.append(await ctx.respond(embed=embed))
 
     async def do_addcharacters(self, ctx, discord_id, labels):
 
@@ -927,7 +936,7 @@ class Smashtheque(commands.Cog):
 
     async def do_chifoumi(self, ctx):
         result = choice(["pile", "face"])
-        await ctx.send(result)
+        await ctx.respond(result)
         return
 
     async def maj_team_infos(self, ctx, object_name):
@@ -947,7 +956,7 @@ class Smashtheque(commands.Cog):
             return
         elif len(attachement) == 0:
             embed = discord.Embed(title=f"Mise à jour du {object_name} de votre team", description=f"Pour changer le {object_name} de votre team, veuillez utiliser cette commande avec une image comme attachement", colour= await ctx.embed_colour())
-            await ctx.send(embed=embed)
+            await ctx.respond(embed=embed)
             return
         team = await self.find_team_by_id(player["administrated_teams"][0]["id"])
         if len(player["administrated_teams"]) > 1:
@@ -1040,7 +1049,7 @@ class Smashtheque(commands.Cog):
         )
         embed.set_footer(text="Vous pouvez ajouter l'url du tournois, la commande ainsi que le graph du tournois dans un seul")
         if not await st_views.ask_confirmation(ctx, embed):
-            await ctx.send("Commande annulée.")
+            await ctx.respond("Commande annulée.")
             return
         tournament_response = {
             "tournament_event": {
@@ -1103,7 +1112,7 @@ class Smashtheque(commands.Cog):
             admins_json = json.load(admins)
             admins_json.append(member.id)
             json.dump(admins_json, admins)
-        await ctx.send("Done !")
+        await ctx.respond("Done !")
 
     # -------------------------------------------------------------------------
     # COMMANDS
@@ -1148,7 +1157,7 @@ class Smashtheque(commands.Cog):
             raise
 
     @commands.slash_command(guild_ids=[737431333478989907])
-    @discord.option("pseudo", str)
+    @discord.option("pseudo", str) # name autocomplete registered during init
     async def jesuis(self, ctx,  pseudo):
         """cette commande va vous permettre d'associer votre compte Discord à un joueur de la Smashthèque.
         \n\nVous devez préciser un pseudo.

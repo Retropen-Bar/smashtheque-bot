@@ -4,6 +4,7 @@ import discord
 from discord import ButtonStyle
 
 import utils
+from utils.responses import respond_or_edit
 
 class CancellButton(discord.ui.Button["AskChoice"]):
     def __init__(self, *, label: str, number: int, style: ButtonStyle) -> None:
@@ -64,23 +65,25 @@ class AskChoice(discord.ui.View):
 
 async def ask_confirmation(ctx, embed):
     view = AskConfirmation()
-    temp_message = await ctx.send(embed=embed, view=view)
+    temp_message = await respond_or_edit(ctx, embed=embed, view=view)
     # Wait for the View to stop listening for input...
     await view.wait()
     if view.value is None:
-        await ctx.send("Commande annulée")
+        
+        await temp_message.reply("Commande annulée")
         return False
     if view.value is True:
         await temp_message.delete()
         return True
     else:
-        await ctx.send("Commande annulée")
+        await temp_message.reply("Commande annulée")
         await temp_message.delete()
         return False
 
 async def ask_choice(ctx, embed:discord.Embed, choices: list):
     view = AskChoice(choices)
-    temp_message = await ctx.send(embed=embed, view=view)
+
+    temp_message = await respond_or_edit(ctx, embed=embed, view=view)
     # Wait for the View to stop listening for input...
     await view.wait()
     if view.value is None or view.value == -1:
