@@ -70,14 +70,12 @@ async def ask_confirmation(ctx, embed):
     await view.wait()
     if view.value is None:
         
-        await temp_message.reply("Commande annulée")
+        await ctx.respond("Commande annulée")
         return False
     if view.value is True:
-        await temp_message.delete()
         return True
     else:
-        await temp_message.reply("Commande annulée")
-        await temp_message.delete()
+        await ctx.respond("Commande annulée")
         return False
 
 async def ask_choice(ctx, embed:discord.Embed, choices: list):

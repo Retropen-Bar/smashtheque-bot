@@ -1,6 +1,6 @@
 from discord.mentions import AllowedMentions
 from discord.ext import commands
-
+from discord.commands import permissions
 
 #from redbot.core.utils.predicates import MessagePredicate
 
@@ -100,13 +100,11 @@ def return_false(_):
     """this method is here to always return False on a check, so no one is allowed to run a command, but it can be overwritten later"""
     return False
 
-async def is_admin_smashtheque(ctx):
+async def is_admin_smashtheque():
+    """This is a decorator"""
     with open("config/admins.json", "r") as admins:
-        admins_json = json.load(admins)
-        if ctx.author.id in admins_json:
-            return True
-        else:
-            return False 
+        return json.load(admins)
+        
 
 class Map(UserDict):
     def __getattr__(self, attr):
@@ -146,9 +144,11 @@ class Smashtheque(commands.Cog):
             }
             self._session = aiohttp.ClientSession(headers=headers)
             self._characters_cache = {}
+            self._verbal_characters_names_cache = []
             self._characters_names_cache = {}
             self._locations_cache = {}
             self._teams_cache = {}
+            await self.fetch_characters()
         except:
             rollbar.report_exc_info()
             raise
@@ -164,6 +164,11 @@ class Smashtheque(commands.Cog):
         So, instead, we set here the arguments. 
         When adding a command that uses the session, or anything else in the Cog object, it need to be registered here"""
         self.jesuis.options[0].autocomplete = self.autocomplete_st_name
+
+        self.ajouterpersos.options[0].autocomplete = self.autocomplete_characters
+        self.enleverpersos.options[0].autocomplete = self.autocomplete_characters
+
+        self.integrer.options[0].autocomplete = self.autocomplete_team_name
 
     def cog_unload(self):
         asyncio.create_task(self._session.close())
@@ -183,6 +188,7 @@ class Smashtheque(commands.Cog):
             # puts values in cache before responding
             for character in characters:
                 self._characters_cache[str(character["id"])] = character
+                self._verbal_characters_names_cache.append(character["name"])
                 self._characters_names_cache[normalize_str(character["name"])] = character["id"]
             # respond
             return characters
@@ -235,7 +241,7 @@ class Smashtheque(commands.Cog):
             character_id = self._characters_names_cache[normalize_str(name)]
         return self._characters_cache[str(character_id)]
 
-    async def find_team_by_short_name(self, short_name):
+    async def find_team_by_name(self, short_name):
         request_url = "{0}?by_short_name_like={1}".format(self.api_url("teams"), short_name)
         async with self._session.get(request_url) as response:
             teams = await response.json()
@@ -316,7 +322,6 @@ class Smashtheque(commands.Cog):
 
     async def autocomplete_st_name(self, interaction):
         print(interaction)
-        return ['red']
         url = self.api_url("players") + "?by_keyword=" + interaction.value
         async with self._session.get(url) as resp:
             if resp.status == 200:
@@ -326,6 +331,20 @@ class Smashtheque(commands.Cog):
                 print("SERVER ROOM ON FIRE")
                 return None
 
+    async def autocomplete_team_name(self, interaction):
+        print(interaction)
+        url = self.api_url("teams") + "?by_keyword=" + interaction.value
+        async with self._session.get(url) as resp:
+            if resp.status == 200:
+                r = await resp.json()
+                return list(dict.fromkeys([p["name"] for p in r])) # remove any duplicates from list
+            else:
+                print("SERVER ROOM ON FIRE")
+                return None
+
+    async def autocomplete_characters(self, interaction):
+        #await self.fetch_characters_if_needed()
+        return list(filter(lambda k: interaction.value in k, self._verbal_characters_names_cache))[:23]
 
     async def raise_message(self, ctx, message):
         embed = discord.Embed(title=message)
@@ -346,7 +365,7 @@ class Smashtheque(commands.Cog):
         )
         if link:
             embed.add_field(name=link, value="\u200b")
-        await ctx.respond(embed=embed)
+        await respond_or_edit(ctx, embed=embed)
 
     def embed_players(self, embed, players, with_index=False):
         idx = 0
@@ -649,15 +668,14 @@ class Smashtheque(commands.Cog):
         await self.confirm_create_player(ctx, response)
 
     async def do_link(self, ctx:discord.ApplicationContext, pseudo, discord_id):
-        """player = await self.find_player_by_discord_id(discord_id)
+        player = await self.find_player_by_discord_id(discord_id)
         if player != None:
             embed = discord.Embed(title="Un joueur est déjà associé à ce compte Discord. Contactez un admin pour dissocier ce compte Discord de ce joueur.")
             self.embed_player(embed, player)
             await ctx.respond(embed=embed)
-            return"""
+            return
 
         players = await self.find_players_by_name(pseudo)
-        await respond_or_edit(ctx, text="sending ...")
 
         # no player found
         if len(players) == 0:
@@ -1169,8 +1187,8 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<pseudo> <ID Discord>")
-    @commands.check(is_admin_smashtheque)
+    @commands.slash_command(guild_ids=[737431333478989907])
+    @permissions.is_user(is_admin_smashtheque)
     async def associer(self, ctx, *, arg):
         """cette commande va vous permettre d'associer un compte Discord à un joueur de la Smashthèque.
         \n\nVous devez préciser son pseudo et son ID Discord.
@@ -1243,29 +1261,32 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<emojis ou noms de persos>")
-    async def ajouterpersos(self, ctx, *, emojis):
+    @commands.slash_command(guild_ids=[737431333478989907])
+    @discord.option("persos", str) # name autocomplete registered during init
+    async def ajouterpersos(self, ctx, persos):
         try:
-            await self.do_addcharacters(ctx, ctx.author.id, emojis)
+            await self.do_addcharacters(ctx, ctx.author.id, persos)
         except:
             rollbar.report_exc_info()
             raise
-
-    @commands.command(usage="<emojis ou noms de persos>")
-    async def enleverpersos(self, ctx, *, emojis):
+    
+    @commands.slash_command(guild_ids=[737431333478989907])
+    @discord.option("persos", str) # name autocomplete registered during init
+    async def enleverpersos(self, ctx, *, persos):
         try:
-            await self.do_removecharacters(ctx, ctx.author.id, emojis)
+            await self.do_removecharacters(ctx, ctx.author.id, persos)
         except:
             rollbar.report_exc_info()
             raise
-
+    """
+    It is not possible to take an unknown number of arguments, so we have to use a string.
     @commands.command(usage="<emojis ou noms de persos>")
     async def remplacerpersos(self, ctx, *, emojis):
         try:
             await self.do_replacecharacters(ctx, ctx.author.id, emojis)
         except:
             rollbar.report_exc_info()
-            raise
+            raise"""
 
     @commands.command(usage="<team>")
     async def quitter(self, ctx, *, team_short_name):
@@ -1275,10 +1296,11 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<team>")
-    async def integrer(self, ctx, *, team_short_name):
+    @commands.slash_command(guild_ids=[737431333478989907])
+    @discord.option("equipe", str) # name autocomplete registered during init
+    async def integrer(self, ctx, *, equipe):
         try:
-            await self.do_addteam(ctx, ctx.author.id, team_short_name)
+            await self.do_addteam(ctx, ctx.author.id, equipe)
         except:
             rollbar.report_exc_info()
             raise
