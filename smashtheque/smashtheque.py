@@ -37,7 +37,7 @@ def normalize_str(s):
 async def yeet(ctx, erreur):
     """lever des erreurs"""
     embed = discord.Embed(
-        title=f"Erreur dans la commande {ctx.command} :",
+        title=f"Erreur dans la commande /{ctx.command.name} :",
         description=erreur,
         colour=discord.Colour.red()
     )
@@ -100,12 +100,14 @@ def return_false(_):
     """this method is here to always return False on a check, so no one is allowed to run a command, but it can be overwritten later"""
     return False
 
-async def is_admin_smashtheque():
+def is_admin_smashtheque():
     """This is a decorator"""
     with open("config/admins.json", "r") as admins:
-        return json.load(admins)
+        a = json.load(admins)
+        print(a)
+        admins.close()
+        return a
         
-
 class Map(UserDict):
     def __getattr__(self, attr):
         val = self.data[attr]
@@ -169,6 +171,15 @@ class Smashtheque(commands.Cog):
         self.enleverpersos.options[0].autocomplete = self.autocomplete_characters
 
         self.integrer.options[0].autocomplete = self.autocomplete_team_name
+        self.quitter.options[0].autocomplete = self.autocomplete_current_team_name
+
+        self.chercherjoueur.options[0].autocomplete = self.autocomplete_st_name
+
+        print(self.chercherjoueur.options)
+
+        self.creerjoueur.options[1].autocomplete = self.autocomplete_characters
+        self.creerjoueur.options[2].autocomplete = self.autocomplete_team_name
+        self.creerjoueur.options[2].required = False
 
     def cog_unload(self):
         asyncio.create_task(self._session.close())
@@ -242,7 +253,7 @@ class Smashtheque(commands.Cog):
         return self._characters_cache[str(character_id)]
 
     async def find_team_by_name(self, short_name):
-        request_url = "{0}?by_short_name_like={1}".format(self.api_url("teams"), short_name)
+        request_url = "{0}?by_name={1}".format(self.api_url("teams"), short_name)
         async with self._session.get(request_url) as response:
             teams = await response.json()
             if teams != []:
@@ -321,7 +332,6 @@ class Smashtheque(commands.Cog):
             return player if player != [] else None
 
     async def autocomplete_st_name(self, interaction):
-        print(interaction)
         url = self.api_url("players") + "?by_keyword=" + interaction.value
         async with self._session.get(url) as resp:
             if resp.status == 200:
@@ -332,7 +342,6 @@ class Smashtheque(commands.Cog):
                 return None
 
     async def autocomplete_team_name(self, interaction):
-        print(interaction)
         url = self.api_url("teams") + "?by_keyword=" + interaction.value
         async with self._session.get(url) as resp:
             if resp.status == 200:
@@ -341,6 +350,10 @@ class Smashtheque(commands.Cog):
             else:
                 print("SERVER ROOM ON FIRE")
                 return None
+
+    async def autocomplete_current_team_name(self, interaction):
+        player = await self.find_player_by_discord_id(interaction.interaction.user.id)
+        return list(filter(lambda k: interaction.value in k, player["team_names"]))[:23]
 
     async def autocomplete_characters(self, interaction):
         #await self.fetch_characters_if_needed()
@@ -536,7 +549,7 @@ class Smashtheque(commands.Cog):
             await generic_error(ctx, r)
             return
 
-    async def do_addplayer(self, ctx, arg):
+    async def do_addplayer(self, ctx, pseudo, perso, team, discord_id):
 
         # fill characters cache if empty
         await self.fetch_characters_if_needed()
@@ -552,108 +565,11 @@ class Smashtheque(commands.Cog):
 
         # init de la réponse
         response = {
-            "name": "",
-            "character_ids": [],
+            "name": pseudo,
+            "character_ids": self.find_character_by_name(perso),
             "creator_discord_id": "",
             "team_ids": []
         }
-
-        # process each argument between spaces
-        # [name piece] [name piece] [emoji] [emoji] [team] [discord ID]
-        arguments = arg.split()
-
-        for argu in arguments:
-            print(f"current_stage={current_stage} argu={argu}")
-
-            if current_stage == 0:
-                print('stage 0')
-                # at this stage, the next argument could be a name piece
-                # ... [name piece] [emoji] [emoji] [team] [discord ID]
-
-                if self.is_character(argu):
-                    if len(response["name"]) > 0:
-                        # we are actually done with the name, so go to stage 1
-                        current_stage = 1
-                        # do not 'continue' here because we stil want to process @argu
-                    else:
-                        await yeet(
-                            ctx, "Veuillez commencer par donner le pseudo du joueur."
-                        )
-                        return
-                else:
-                    # parse le nom qui peut contenir des espaces
-                    response["name"] = response["name"] + argu + " "
-                    # there could still be remaining pieces of the pseudo,
-                    # so do not go to stage 1 yet
-                    continue
-
-            # do not use elif here because we want the previous section to be able to go here
-            # without restarting the loop
-            if current_stage == 1:
-                print('stage 1')
-                # at this stage, the next argument could be a character emoji
-                # ... [emoji] [emoji] [team] [location] [discord ID]
-
-                if not self.is_character(argu):
-                    # we are actually done with the emojis, so go to stage 2
-                    current_stage = 2
-                    # do not 'continue' here because we stil want to process @argu
-                else:
-                    # more emojis to parse
-                    character = await self.find_character_by_label(ctx, argu)
-                    if character == None:
-                        return
-                    response["character_ids"].append(character["id"])
-                    # there could still be emojis to parse,
-                    # so do not go to stage 2 yet
-                    continue
-
-            # do not use elif here because we want the previous section to be able to go here
-            # without restarting the loop
-            if current_stage == 2:
-                print('stage 2')
-                # at this stage, the next argument could be a team
-                # ... [team] [location] [discord ID]
-
-                if is_discord_id(argu):
-                    response["discord_id"] = str(argu)
-                    break
-
-                team = await self.find_team_by_short_name(argu)
-                if team != None:
-                    response["team_ids"].append(team["id"])
-                    current_stage = 3
-                    continue
-
-                # nope, not a team, try next stage
-                current_stage = 3
-
-            # do not use elif here because we want the previous section to be able to go here
-            # without restarting the loop
-            if current_stage == 3:
-                print('stage 3')
-                # at this stage, the next argument could only be a discord ID
-                # ... [discord ID]
-
-                if is_discord_id(argu):
-                    response["discord_id"] = str(argu)
-                    break
-
-                elif len(response["team_ids"]) > 0:
-                    # we have a team, so argu could be for a location or a Discord ID
-                    await yeet(
-                        ctx,
-                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
-                    )
-                    return
-                else:
-                    # we have no team and no location: argu could be for a team, a location or a Discord ID
-                    await yeet(
-                        ctx,
-                        f"Nous n'avons pas réussi à reconnaître {argu}.\nS'il s'agit d'une équipe, vous devez demander à un administrateur de la créer.\nS'il s'agit d'un ID Discord, il n'est pas correct\nPour avoir l'ID d'un utilisateur, activez simplement les options de développeur dans l'onglet apparence de discord, puis faites un clic droit sur l'utilisateur > copier l'identifiant."
-                    )
-                    return
-
 
         # make sure some characters were provided
         if len(response["character_ids"]) < 1:
@@ -779,17 +695,17 @@ class Smashtheque(commands.Cog):
             return
         await self.update_player(ctx, player["id"], {"name": new_name})
 
-    async def do_removeteam(self, ctx, discord_id, team_short_name):
+    async def do_removeteam(self, ctx, discord_id, team_name):
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
             await self.raise_not_linked(ctx)
             return
         team_ids = player["team_ids"]
-        team = await self.find_team_by_short_name(team_short_name)
+        team = await self.find_team_by_name(team_name)
         if team == None:
             await self.raise_message(
                 ctx,
-                f"Nous n'avons pas réussi à trouver l'équipe {team_short_name}.\nVous pouvez demander à un administrateur de la créer."
+                f"Nous n'avons pas réussi à trouver l'équipe {team_name}.\nVous pouvez demander à un administrateur de la créer."
             )
             return
         team_id = team["id"]
@@ -797,24 +713,24 @@ class Smashtheque(commands.Cog):
             team_ids.remove(team_id)
         await self.update_player(ctx, player["id"], {"team_ids": team_ids})
 
-    async def do_addteam(self, ctx, discord_id, team_short_name):
+    async def do_addteam(self, ctx, discord_id, team_name):
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
             await self.raise_not_linked(ctx)
             return
         team_ids = player["team_ids"]
-        team = await self.find_team_by_short_name(team_short_name)
+        team = await self.find_team_by_name(team_name)
         if team == None:
             await self.raise_message(
                 ctx,
-                f"Nous n'avons pas réussi à trouver l'équipe {team_short_name}.\nVous pouvez demander à un administrateur de la créer."
+                f"Nous n'avons pas réussi à trouver l'équipe {team_name}.\nVous pouvez demander à un administrateur de la créer."
             )
             return
         team_id = team["id"]
         if team_id in team_ids:
             await self.raise_message(
                 ctx,
-                f"Ce joueur est déjà membre de l'équipe {team_short_name}."
+                f"Ce joueur est déjà membre de l'équipe {team_name}."
             )
             return
         team_ids.append(team_id)
@@ -1128,6 +1044,7 @@ class Smashtheque(commands.Cog):
     async def do_add_admin_smashtheque(self, ctx, member):
         with open("config/admins.json", "w") as admins:
             admins_json = json.load(admins)
+            print(admins_json)
             admins_json.append(member.id)
             json.dump(admins_json, admins)
         await ctx.respond("Done !")
@@ -1160,8 +1077,12 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<pseudo> <emojis ou noms de persos> [team] [ID Discord]")
-    async def creerjoueur(self, ctx, *, arg):
+    @commands.slash_command(guild_ids=[737431333478989907])
+    @discord.option("pseudo", str)
+    @discord.option("persos", str)
+    @discord.option("team", str, required=False)
+    @discord.option("ID Discord", int, required=False)
+    async def creerjoueur(self, ctx, pseudo, perso, team, discord_id: discord.Option(int, required=False)):
         """cette commande va vous permettre d'ajouter un joueur dans la Smashthèque.
         \n\nVous devez ajouter au minimum le pseudo et les personnages joués (dans l'ordre).
         \n\nVous pouvez aussi ajouter sa team et, s'il possède un compte Discord, son ID pour qu'il puisse modifier lui-même son compte.
@@ -1169,7 +1090,7 @@ class Smashtheque(commands.Cog):
         \n\n\nExemples : \n- creerjoueur Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>\n- creerjoueur Pixel Yoshi Bowser\n- creerjoueur red <:Joker:737480520052637756> OPS 332894758076678144\n"""
 
         try:
-            await self.do_addplayer(ctx, arg)
+            await self.do_addplayer(ctx, pseudo, perso, team, discord_id)
         except:
             rollbar.report_exc_info()
             raise
@@ -1187,8 +1108,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command(guild_ids=[737431333478989907])
-    @permissions.is_user(is_admin_smashtheque)
+    @commands.slash_command(guild_ids=[737431333478989907], user_ids=is_admin_smashtheque())
     async def associer(self, ctx, *, arg):
         """cette commande va vous permettre d'associer un compte Discord à un joueur de la Smashthèque.
         \n\nVous devez préciser son pseudo et son ID Discord.
@@ -1237,7 +1157,15 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command()
+    @commands.user_command(name="qui est", guild_ids=[737431333478989907])
+    async def quiest(self, ctx, target_member: discord.Member):
+        try:
+            await self.do_showplayer(ctx, target_member)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.slash_command(guild_ids=[737431333478989907])
     async def quisuisje(self, ctx):
         try:
             await self.do_showplayer(ctx, ctx.author)
@@ -1253,7 +1181,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command()
+    @commands.slash_command(guild_ids=[737431333478989907])
     async def persos(self, ctx):
         try:
             await self.do_listavailablecharacters(ctx)
@@ -1288,27 +1216,29 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise"""
 
-    @commands.command(usage="<team>")
-    async def quitter(self, ctx, *, team_short_name):
+    @commands.slash_command(guild_ids=[737431333478989907])
+    @discord.option("equipe", str) # name autocomplete registered during init
+    async def quitter(self, ctx, equipe):
         try:
-            await self.do_removeteam(ctx, ctx.author.id, team_short_name)
+            await self.do_removeteam(ctx, ctx.author.id, equipe)
         except:
             rollbar.report_exc_info()
             raise
 
     @commands.slash_command(guild_ids=[737431333478989907])
     @discord.option("equipe", str) # name autocomplete registered during init
-    async def integrer(self, ctx, *, equipe):
+    async def integrer(self, ctx, equipe):
         try:
             await self.do_addteam(ctx, ctx.author.id, equipe)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<pseudo>")
-    async def chercherjoueur(self, ctx, *, name):
+    @commands.slash_command(guild_ids=[737431333478989907])
+    @discord.option("nom", str) # name autocomplete registered during init
+    async def chercherjoueur(self, ctx, nom):
         try:
-            await self.do_findplayer(ctx, name)
+            await self.do_findplayer(ctx, nom)
         except:
             rollbar.report_exc_info()
             raise
