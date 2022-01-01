@@ -805,7 +805,7 @@ class Smashtheque(commands.Cog):
         if team == None:
             await self.raise_message(
                 ctx,
-                f"Nous n'avons pas réussi à trouver l'équipe {team_short_name}.\nVous pouvez demander à un administrateur de la créer."
+                f"Nous n'avons pas réussi à trouver l'équipe {team_short_name}.\nUtilisez le nom court des équipes.\nVous pouvez demander à un administrateur de la créer."
             )
             return
         team_id = team["id"]
