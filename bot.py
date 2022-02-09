@@ -18,4 +18,4 @@ BOT_TOKEN = os.environ.get('BOT_TOKEN')
 
 client.add_cog(Smashtheque(client))
 client.add_cog(CommandErrorHandler(client))
-client.run("NzQ1MDIyNjE4MzU2NDE2NTcy.XzruYg.Pq2cYiJfARz-1A_ay3J1YVNe8kg")
+client.run(BOT_TOKEN)

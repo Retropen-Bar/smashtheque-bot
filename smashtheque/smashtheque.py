@@ -1,6 +1,8 @@
 from discord.mentions import AllowedMentions
 from discord.ext import commands
 from discord.commands import permissions
+from discord.commands import Option
+from discord.enums import SlashCommandOptionType
 
 #from redbot.core.utils.predicates import MessagePredicate
 
@@ -175,11 +177,12 @@ class Smashtheque(commands.Cog):
 
         self.chercherjoueur.options[0].autocomplete = self.autocomplete_st_name
 
-        print(self.chercherjoueur.options)
 
         self.creerjoueur.options[1].autocomplete = self.autocomplete_characters
         self.creerjoueur.options[2].autocomplete = self.autocomplete_team_name
         self.creerjoueur.options[2].required = False
+
+        self.associer.options[1].autocomplete = self.autocomplete_st_name
 
     def cog_unload(self):
         asyncio.create_task(self._session.close())
@@ -873,7 +876,7 @@ class Smashtheque(commands.Cog):
         await ctx.respond(result)
         return
 
-    async def maj_team_infos(self, ctx, object_name):
+    async def maj_team_infos(self, ctx, attachement: discord.Attachment, object_name):
 
         """will update a team info
         object_name is something like logo, or roster"""
@@ -884,14 +887,7 @@ class Smashtheque(commands.Cog):
         elif player["administrated_teams"] == []:
             await yeet(ctx, "Vous n'êtes l'admin d'aucune team.")
             return
-        attachement = ctx.message.attachments
-        if len(attachement) >= 2:
-            await yeet(ctx, "Veuillez n'envoyer qu'une seule image.")
-            return
-        elif len(attachement) == 0:
-            embed = discord.Embed(title=f"Mise à jour du {object_name} de votre team", description=f"Pour changer le {object_name} de votre team, veuillez utiliser cette commande avec une image comme attachement", colour= await ctx.embed_colour())
-            await ctx.respond(embed=embed)
-            return
+
         team = await self.find_team_by_id(player["administrated_teams"][0]["id"])
         if len(player["administrated_teams"]) > 1:
             embed = discord.Embed(title="Vous âtes administrateur de plusieurs teams. ", description=f"De quelle team faut-il modifier le {object_name} ?")
@@ -906,14 +902,14 @@ class Smashtheque(commands.Cog):
         name="Smashthèque",
         icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
         )
-        embed.set_image(url=ctx.message.attachments[0].url)
+        embed.set_image(url=attachement.url)
         confirmation = await st_views.ask_confirmation(ctx, embed)
         if not confirmation:
             return
         request_url = f"{self.api_url('teams')}/{team['id']}/"
         reply_body = {
             "team": {
-                f"{object_name}_url": ctx.message.attachments[0].url
+                f"{object_name}_url": attachement.url
             }
         }
         async with self._session.patch(request_url, json=reply_body) as response:
@@ -1003,7 +999,7 @@ class Smashtheque(commands.Cog):
                 await yeet(ctx, "Ce tournoi est déjà enregistré dans la Smashthèque.")
                 return
 
-    async def do_insertedition(self, ctx, series_id, bracket):
+    async def do_insertedition(self, ctx, series_id, attachement, bracket):
         embed_title_message = "Vous êtes sur le point d'ajouter un bracket" # Will be overriden if series id is present
         if series_id:
             tournament = await self.find_tournament_by_id(series_id)
@@ -1024,14 +1020,13 @@ class Smashtheque(commands.Cog):
         }
         if series_id: # add id to reply if present
             tournament_response["recurring_tournament_id"] = series_id
-        attachement = ctx.message.attachments
-        if len(attachement) == 1:
-            tournament_response["tournament_event"]["graph_url"] = attachement[0].url
+
+        print(attachement)
+        if attachement:
+            tournament_response["tournament_event"]["graph_url"] = attachement.url
         request_url = self.api_url("tournament_events")
-        print(tournament_response)
         async with self._session.post(request_url, json=tournament_response) as r:
-            print(r)
-            print(r.text)
+
             response = await r.json()
             if r.status == 201:
                 await self.show_confirmation(ctx, f"Une édition a été crée avec succès.", link=f"{self.api_base_url}/tournament_events/{response['id']}")
@@ -1040,6 +1035,8 @@ class Smashtheque(commands.Cog):
             elif r.status == 422:
                 await yeet(ctx, "Ce tournoi est déjà enregistré dans la Smashthèque.")
                 return
+            else:
+                await generic_error(ctx)
 
     async def do_add_admin_smashtheque(self, ctx, member):
         with open("config/admins.json", "w") as admins:
@@ -1109,15 +1106,14 @@ class Smashtheque(commands.Cog):
             raise
 
     @commands.slash_command(guild_ids=[737431333478989907], user_ids=is_admin_smashtheque())
-    async def associer(self, ctx, *, arg):
+    @discord.option("pseudo", str) #autocomplete
+    @discord.option("discord_id", int) 
+    async def associer(self, ctx, pseudo, discord_id):
         """cette commande va vous permettre d'associer un compte Discord à un joueur de la Smashthèque.
         \n\nVous devez préciser son pseudo et son ID Discord.
         \n\n\nExemples : \n- associer Pixel 608210202952466464\n- associer red 332894758076678144\n"""
 
         try:
-            args = arg.split()
-            pseudo = ' '.join(args[:-1])
-            discord_id = args[-1]
             await self.do_link(ctx, pseudo, discord_id)
         except:
             rollbar.report_exc_info()
@@ -1251,22 +1247,22 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command()
-    async def majlogo(self, ctx):
+    @commands.slash_command(guild_ids=[737431333478989907])
+    async def majlogo(self, ctx, logo: Option(SlashCommandOptionType.attachment, "Logo de votre équipe")):
         """Utilisez cette commande avec une image pour changer le logo de votre team. \n
         Vous devez être administrateur de la team dont vous voulez changer le logo."""
         try:
-            await self.maj_team_infos(ctx, "logo")
+            await self.maj_team_infos(ctx, logo, "logo")
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.command()
-    async def majroster(self, ctx):
+    @commands.slash_command(guild_ids=[737431333478989907])
+    async def majroster(self, ctx, logo: Option(SlashCommandOptionType.attachment, "Roaster de votre équipe")):
         """Utilisez cette commande avec une image pour changer le roster de votre team. \n
         Vous devez être administrateur de la team dont vous voulez changer le roster."""
         try:
-            await self.maj_team_infos(ctx, "roster")
+            await self.maj_team_infos(ctx, logo, "roster")
         except:
             rollbar.report_exc_info()
             raise
@@ -1280,22 +1276,20 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command()
-    async def ajouttournoi(self, ctx, bracket, series_id: Optional[int]):
+    @commands.slash_command(guild_ids=[737431333478989907])
+    async def ajouttournoi(self, ctx, 
+                            bracket: Option(
+                                SlashCommandOptionType.string, "Lien du bracket"), 
+                            graph: Option(
+                                SlashCommandOptionType.attachment, "Graph du tournoi", required=False),
+                            series_id: Option(
+                                SlashCommandOptionType.integer, "ID de la série", required=False)
+                                ):
         """
-        Cette commande permet aux joueurs d'ajouter une édition dans la smashthèque.\n
-        *Rappel :* Vous pouvez aussi effectuer cette action sur le site (https://smashtheque.fr) en vous connectant.\n
-        Vous pouvez utiliser cette commande avec le lien du bracket seul pour ajouter le tournoi. Si la série existe déjà, cela laisse à l'équipe smashthèque la tâche de le lier à la série de tournoi correspondante.\n
-        Exemple :\n
-        - `s!ajouttournoi https://smash.gg/tournament/happy-smash-hour-8/event/smash-1v1/brackets/891100/1423529`\n\n
-        Vous pouvez ajouter l'ID de la série de tournoi, trouvable sur le site. (Exemple : `https://www.smashtheque.fr/recurring_tournaments/24`, l'ID du tournoi est donc ***24***)\n
-        Exemple : \n
-        - `s!ajouttournoi https://challonge.com/1qdse2zn 24`\n\n
-        Enfin, vous pouvez ajouter le graph du tournoi en pièce jointe du message contenant la commande.
-        
+        Cette commande permet aux joueurs d'ajouter une édition dans la smashthèque.
         """
         try:
-            await self.do_insertedition(ctx, series_id, bracket)
+            await self.do_insertedition(ctx, series_id, graph, bracket)
         except:
             rollbar.report_exc_info()
             raise
