@@ -1373,7 +1373,7 @@ class Smashtheque(commands.Cog):
                                     SlashCommandOptionType.string, "ID discord du joueur", name= "ID discord")
                                 ):
         try:
-            await self.do_add_profile_connection(ctx, lien, "twitter_url", discord_id)
+            await self.do_add_profile_connection(ctx, lien, "smashgg_url", discord_id)
         except:
             rollbar.report_exc_info()
             raise
