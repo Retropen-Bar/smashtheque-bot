@@ -1046,6 +1046,35 @@ class Smashtheque(commands.Cog):
             json.dump(admins_json, admins)
         await ctx.respond("Done !")
 
+    async def do_add_self_profile_connection(self, ctx, link, connection_field):
+        player = self.find_player_by_discord_id(ctx.author.id)
+        if player is None:
+            await yeet(ctx, "Vous n'êtes pas enregistré dans la smashtheque.")
+            return
+        request = {}
+        request[connection_field] = link
+        url = self.api_url("player") + "/" + player["id"]
+        async with self._session.patch(url, request) as r:
+            if r.status == 200:
+                await self.show_confirmation(ctx, "Votre profil a été mis à jour avec succès !", link=f"{self.api_base_url}/players/{player['id']}")
+            else:
+                await self.generic_error(ctx)
+
+    async def do_add_profile_connection(self, ctx, link, connection_field, discord_id):
+        """adds a profile connection for someone else"""
+        player = self.find_player_by_discord_id(discord_id)
+        if player is None:
+            await yeet(ctx, "Ce joueur n'est pas enregistré dans la smashthèque.")
+            return
+        request = {}
+        request[connection_field] = link
+        url = self.api_url("player") + "/" + player["id"]
+        async with self._session.patch(url, request) as r:
+            if r.status == 200:
+                await self.show_confirmation(ctx, "Ce profil a été mis à jour avec succès !", link=f"{self.api_base_url}/players/{player['id']}")
+            else:
+                await self.generic_error(ctx)
+
     # -------------------------------------------------------------------------
     # COMMANDS
     # -------------------------------------------------------------------------
@@ -1076,15 +1105,11 @@ class Smashtheque(commands.Cog):
 
     @commands.slash_command(guild_ids=[737431333478989907])
     @discord.option("pseudo", str)
-    @discord.option("persos", str)
+    @discord.option("perso", str)
     @discord.option("team", str, required=False)
-    @discord.option("ID Discord", int, required=False)
+    @discord.option("ID Discord", str, required=False)
     async def creerjoueur(self, ctx, pseudo, perso, team, discord_id: discord.Option(int, required=False)):
-        """cette commande va vous permettre d'ajouter un joueur dans la Smashthèque.
-        \n\nVous devez ajouter au minimum le pseudo et les personnages joués (dans l'ordre).
-        \n\nVous pouvez aussi ajouter sa team et, s'il possède un compte Discord, son ID pour qu'il puisse modifier lui-même son compte.
-        \n\nVous pouvez récupérer l'ID avec les options de developpeur (activez-les dans l'onglet Apparence des paramètres de l'utilisateur, puis faites un clic droit sur l'utilisateur et sélectionnez \"Copier ID\".)
-        \n\n\nExemples : \n- creerjoueur Pixel <:Yoshi:737480513744273500> <:Bowser:737480497332224100>\n- creerjoueur Pixel Yoshi Bowser\n- creerjoueur red <:Joker:737480520052637756> OPS 332894758076678144\n"""
+        """cette commande va vous permettre d'ajouter un joueur dans la Smashthèque."""
 
         try:
             await self.do_addplayer(ctx, pseudo, perso, team, discord_id)
@@ -1119,11 +1144,9 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command()
-    @commands.check(is_admin_smashtheque)
+    @commands.slash_command()
     async def jenesuispas(self, ctx):
-        """cette commande permet de dissocier votre compte Discord d'un joueur de la Smashthèque.
-        \n\n\nExemples : \n- jenesuispas\n"""
+        """cette commande permet de dissocier votre compte Discord d'un joueur de la Smashthèque."""
 
         try:
             await self.do_unlink(ctx, ctx.author)
@@ -1134,9 +1157,7 @@ class Smashtheque(commands.Cog):
     @commands.command(usage="<ID Discord>")
     @commands.check(is_admin_smashtheque)
     async def dissocier(self, ctx, *, target_member: discord.Member):
-        """cette commande permet de dissocier un compte Discord d'un joueur de la Smashthèque.
-        \n\nVous devez préciser son ID Discord.
-        \n\n\nExemples : \n- dissocier 608210202952466464\n- dissocier 332894758076678144\n"""
+        """cette commande permet de dissocier un compte Discord d'un joueur de la Smashthèque."""
 
         try:
             await self.do_unlink(ctx, target_member)
@@ -1147,6 +1168,7 @@ class Smashtheque(commands.Cog):
     @commands.command(usage="<ID Discord>")
     @commands.check(is_admin_smashtheque)
     async def quiest(self, ctx, *, target_member: discord.Member):
+        """Cette commande vous permet de savoir qui est le joueur de la Smashthèque associé à un compte Discord."""
         try:
             await self.do_showplayer(ctx, target_member)
         except:
@@ -1155,6 +1177,7 @@ class Smashtheque(commands.Cog):
 
     @commands.user_command(name="qui est", guild_ids=[737431333478989907])
     async def quiest(self, ctx, target_member: discord.Member):
+
         try:
             await self.do_showplayer(ctx, target_member)
         except:
@@ -1163,6 +1186,7 @@ class Smashtheque(commands.Cog):
 
     @commands.slash_command(guild_ids=[737431333478989907])
     async def quisuisje(self, ctx):
+        """Cette commande vous permet de savoir qui est le joueur de la Smashthèque associé à votre compte Discord."""
         try:
             await self.do_showplayer(ctx, ctx.author)
         except:
@@ -1187,7 +1211,7 @@ class Smashtheque(commands.Cog):
 
     @commands.slash_command(guild_ids=[737431333478989907])
     @discord.option("persos", str) # name autocomplete registered during init
-    async def ajouterpersos(self, ctx, persos):
+    async def ajouterperso(self, ctx, persos):
         try:
             await self.do_addcharacters(ctx, ctx.author.id, persos)
         except:
@@ -1196,7 +1220,7 @@ class Smashtheque(commands.Cog):
     
     @commands.slash_command(guild_ids=[737431333478989907])
     @discord.option("persos", str) # name autocomplete registered during init
-    async def enleverpersos(self, ctx, *, persos):
+    async def enleverperso(self, ctx, *, persos):
         try:
             await self.do_removecharacters(ctx, ctx.author.id, persos)
         except:
@@ -1312,4 +1336,45 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    
+    @commands.slash_command(guild_ids=[737431333478989907])
+    async def ajoutertwitter(self, ctx, lien: Option(
+                                SlashCommandOptionType.string, "Lien de votre compte twitter")):
+        try:
+            await self.do_add_self_profile_connection(ctx, lien, "twitter_url")
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.slash_command(guild_ids=[737431333478989907], user_ids=is_admin_smashtheque())
+    async def inserertwitter(self, ctx, lien: Option(
+                                SlashCommandOptionType.string, "Lien de votre compte twitter"), 
+                                discord_id: Option(
+                                    SlashCommandOptionType.string, "ID discord du joueur", name= "ID discord")
+                                ):
+        try:
+            await self.do_add_profile_connection(ctx, lien, "twitter_url", discord_id)
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.slash_command(guild_ids=[737431333478989907])
+    async def ajoutersmashgg(self, ctx, lien: Option(
+                                SlashCommandOptionType.string, "Lien de votre compte smash.gg")):
+        try:
+            await self.do_add_self_profile_connection(ctx, lien, "smashgg_url")
+        except:
+            rollbar.report_exc_info()
+            raise
+
+    @commands.slash_command(guild_ids=[737431333478989907], user_ids=is_admin_smashtheque())
+    async def inserersmashgg(self, ctx, lien: Option(
+                                SlashCommandOptionType.string, "Lien du compte smash.gg"), 
+                                discord_id: Option(
+                                    SlashCommandOptionType.string, "ID discord du joueur", name= "ID discord")
+                                ):
+        try:
+            await self.do_add_profile_connection(ctx, lien, "twitter_url", discord_id)
+        except:
+            rollbar.report_exc_info()
+            raise
+
