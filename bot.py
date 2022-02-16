@@ -3,14 +3,18 @@ from discord import client
 import discord
 from discord.ext import commands
 
+from discord import Intents
+
 
 import os
 
 from smashtheque.smashtheque import Smashtheque
 from error_handler import CommandErrorHandler
 
+intents = Intents.none()
+
 # make a minimalist bot with cogs
-client = commands.Bot(command_prefix='&')
+client = commands.Bot(command_prefix='&', intents=intents)
 
 # get BOT_TOKEN from environ
 
