@@ -1183,7 +1183,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command(guild_ids=[737431333478989907])
+    @commands.slash_command()
     @discord.option("pseudo", str)
     @discord.option("perso", str)
     @discord.option("team", str, required=False)
@@ -1197,7 +1197,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command(guild_ids=[737431333478989907])
+    @commands.slash_command()
     @discord.option("pseudo", str) # name autocomplete registered during init
     async def jesuis(self, ctx,  pseudo):
         """cette commande va vous permettre d'associer votre compte Discord à un joueur de la Smashthèque.
@@ -1210,7 +1210,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command(guild_ids=[737431333478989907], user_ids=is_admin_smashtheque())
+    @commands.slash_command(user_ids=is_admin_smashtheque())
     @discord.option("pseudo", str) #autocomplete
     @discord.option("discord_id", int) 
     async def associer(self, ctx, pseudo, discord_id):
@@ -1255,7 +1255,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.user_command(name="qui est", guild_ids=[737431333478989907])
+    @commands.user_command(name="qui est", )
     async def quiest(self, ctx, target_member: discord.Member):
 
         try:
@@ -1264,7 +1264,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command(guild_ids=[737431333478989907])
+    @commands.slash_command()
     async def quisuisje(self, ctx):
         """Permet de savoir qui est le joueur de la Smashthèque associé à votre compte Discord."""
         try:
@@ -1273,7 +1273,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command(guild_ids=[737431333478989907])
+    @commands.slash_command()
     async def changerpseudo(self, ctx, name:str):
         try:
             await self.do_editname(ctx, ctx.author.id, name)
@@ -1281,7 +1281,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command(guild_ids=[737431333478989907])
+    @commands.slash_command()
     @discord.option("persos", str) # name autocomplete registered during init
     async def ajouterperso(self, ctx, persos):
         try:
@@ -1290,7 +1290,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
     
-    @commands.slash_command(guild_ids=[737431333478989907])
+    @commands.slash_command()
     @discord.option("persos", str) # name autocomplete registered during init
     async def enleverperso(self, ctx, *, persos):
         try:
@@ -1308,7 +1308,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise"""
 
-    @commands.slash_command(guild_ids=[737431333478989907])
+    @commands.slash_command()
     @discord.option("equipe", str) # name autocomplete registered during init
     async def quitter(self, ctx, equipe):
         try:
@@ -1317,7 +1317,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command(guild_ids=[737431333478989907])
+    @commands.slash_command()
     @discord.option("equipe", str) # name autocomplete registered during init
     async def integrer(self, ctx, equipe):
         try:
@@ -1326,7 +1326,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command(guild_ids=[737431333478989907])
+    @commands.slash_command()
     @discord.option("nom", str) # name autocomplete registered during init
     async def chercherjoueur(self, ctx, nom):
         try:
@@ -1343,7 +1343,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command(guild_ids=[737431333478989907])
+    @commands.slash_command()
     async def majlogo(self, ctx, logo: Option(SlashCommandOptionType.attachment, "Logo de votre équipe")):
         """Utilisez cette commande avec une image pour changer le logo de votre team. \n
         Vous devez être administrateur de la team dont vous voulez changer le logo."""
@@ -1353,7 +1353,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command(guild_ids=[737431333478989907])
+    @commands.slash_command()
     async def majroster(self, ctx, logo: Option(SlashCommandOptionType.attachment, "Roaster de votre équipe")):
         """Utilisez cette commande avec une image pour changer le roster de votre team. \n
         Vous devez être administrateur de la team dont vous voulez changer le roster."""
@@ -1363,7 +1363,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command(guild_ids=[737431333478989907])
+    @commands.slash_command()
     async def ajouttournoi(self, ctx, 
                             bracket: Option(
                                 SlashCommandOptionType.string, "Lien du bracket"), 
@@ -1399,7 +1399,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command(guild_ids=[737431333478989907])
+    @commands.slash_command()
     async def ajoutertwitter(self, ctx, lien: Option(
                                 SlashCommandOptionType.string, "Lien de votre compte twitter")):
         try:
@@ -1408,7 +1408,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command(guild_ids=[737431333478989907], user_ids=is_admin_smashtheque())
+    @commands.slash_command(user_ids=is_admin_smashtheque())
     async def inserertwitter(self, ctx, lien: Option(
                                 SlashCommandOptionType.string, "Lien de votre compte twitter"), 
                                 discord_id: Option(
@@ -1420,7 +1420,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command(guild_ids=[737431333478989907])
+    @commands.slash_command()
     async def ajoutersmashgg(self, ctx, lien: Option(
                                 SlashCommandOptionType.string, "Lien de votre compte smash.gg")):
         try:
@@ -1429,7 +1429,7 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command(guild_ids=[737431333478989907], user_ids=is_admin_smashtheque())
+    @commands.slash_command(user_ids=is_admin_smashtheque())
     async def inserersmashgg(self, ctx, lien: Option(
                                 SlashCommandOptionType.string, "Lien du compte smash.gg"), 
                                 discord_id: Option(
