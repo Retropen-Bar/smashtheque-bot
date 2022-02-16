@@ -90,3 +90,13 @@ async def ask_choice(ctx, embed:discord.Embed, choices: list):
     
     else:
         return view.value
+
+class makeEphemeralPublic(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=1000)
+        self.value = None
+    
+    @discord.ui.button(label='Afficher Publiquement', style=discord.ButtonStyle.grey)
+    async def cancel(self, button: discord.ui.Button, interaction: discord.Interaction):
+        await interaction.channel.send(embed=interaction.message.embeds[0])
+        self.stop()

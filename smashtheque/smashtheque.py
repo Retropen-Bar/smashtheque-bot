@@ -169,8 +169,8 @@ class Smashtheque(commands.Cog):
         When adding a command that uses the session, or anything else in the Cog object, it need to be registered here"""
         self.jesuis.options[0].autocomplete = self.autocomplete_st_name
 
-        self.ajouterpersos.options[0].autocomplete = self.autocomplete_characters
-        self.enleverpersos.options[0].autocomplete = self.autocomplete_characters
+        self.ajouterperso.options[0].autocomplete = self.autocomplete_characters
+        self.enleverperso.options[0].autocomplete = self.autocomplete_characters
 
         self.integrer.options[0].autocomplete = self.autocomplete_team_name
         self.quitter.options[0].autocomplete = self.autocomplete_current_team_name
@@ -281,6 +281,18 @@ class Smashtheque(commands.Cog):
             tournament = await response.json()
             return tournament
 
+    async def find_tournament_by_name(self, name):
+        request_url = "{0}?by_name={1}".format(self.api_url("teams"), short_name)
+        async with self._session.get(request_url) as response:
+            teams = await response.json()
+            if teams != []:
+                # puts values in cache before responding
+                for team in teams:
+                    self._teams_cache[str(team["id"])] = team
+                return teams[0]
+            else:
+                return None
+
     async def find_location_by_name(self, name):
         """!!!!!!!!!!!!!!!! probably obsolete !!!!!!!!!!!!!!!!!!!!!!!"""
         request_url = "{0}?by_name_like={1}".format(self.api_url("locations"), name)
@@ -316,6 +328,8 @@ class Smashtheque(commands.Cog):
             return None
 
     async def find_players_by_name(self, name):
+        """by_name IS NOT IMPLEMENTED YET"""
+        raise NotImplementedError
         request_url = "{0}?by_name={1}".format(self.api_url("players"), name)
         async with self._session.get(request_url) as response:
             players = await response.json()
@@ -335,7 +349,7 @@ class Smashtheque(commands.Cog):
             return player if player != [] else None
 
     async def autocomplete_st_name(self, interaction):
-        url = self.api_url("players") + "?by_keyword=" + interaction.value
+        url = self.api_url("players") + "?by_keyword=" + interaction.value + "&order=points_online_all_time_desc"
         async with self._session.get(url) as resp:
             if resp.status == 200:
                 r = await resp.json()
@@ -654,7 +668,7 @@ class Smashtheque(commands.Cog):
         discord_user = format_discord_user(discord_id)
         await self.show_confirmation(ctx, f"Le compte Discord {discord_user} a été dissocié du joueur {player_name}.", link=f"{self.api_base_url}/players/{player['id']}")
 
-    async def do_showplayer(self, ctx, target_member):
+    async def do_showplayer(self, ctx, target_member, ephemeral = False):
         discord_id = target_member.id
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
@@ -663,9 +677,14 @@ class Smashtheque(commands.Cog):
         embed = discord.Embed(
             title="Ce compte Discord est associé au joueur suivant :",
             colour=discord.Colour.green(),
+            url=f"{self.api_base_url}/players/{player['id']}"
         )
         self.embed_player(embed, player)
-        await ctx.respond(embed=embed)
+        if ephemeral:
+            view = st_views.makeEphemeralPublic()
+            await ctx.respond(embed=embed, ephemeral = True, view = view)
+            return
+        await ctx.respond(embed=embed, ephemeral = False)
 
     async def do_findplayer(self, ctx, name):
         players = await self.find_players_by_name_like(name)
@@ -777,6 +796,7 @@ class Smashtheque(commands.Cog):
         await self.show_confirmation(ctx, final_message, link=f"{self.api_base_url}/players/{player_id}")
 
     async def do_listavailablecharacters(self, ctx):
+        """MARKED FOR REMOVAL"""
 
         # fill characters cache if empty
         await self.fetch_characters_if_needed()
@@ -922,6 +942,7 @@ class Smashtheque(commands.Cog):
                 await self.show_confirmation(ctx, f"Le {object_name} de la team {team['name']} a été mis à jour avec succès.", link = f"{self.api_base_url}/teams/{team['id']}")
 
     async def do_addedition(self, ctx, bracket):
+        """MARKED FOR REMOVAL. Is deprecated, insertedition will be used instead"""
         #generic checks
         player = await self.find_member_by_discord_id(ctx.author.id)
         if player is None:
@@ -999,8 +1020,8 @@ class Smashtheque(commands.Cog):
                 await yeet(ctx, "Ce tournoi est déjà enregistré dans la Smashthèque.")
                 return
 
-    async def do_insertedition(self, ctx, series_id, attachement, bracket):
-        embed_title_message = "Vous êtes sur le point d'ajouter un bracket" # Will be overriden if series id is present
+    async def do_insertedition(self, ctx:discord.ApplicationContext, series_id, attachement, bracket):
+        embed_title_message = "Vous êtes sur le point d'ajouter une édition" # Will be overriden if series id is present
         if series_id:
             tournament = await self.find_tournament_by_id(series_id)
             print(tournament)
@@ -1008,6 +1029,35 @@ class Smashtheque(commands.Cog):
                 await yeet(ctx, "Cette ID ne correspond à aucun tournoi.")
                 return
             embed_title_message = f"Vous êtes sur le point d'ajouter une édition au tournois {tournament['name']}"
+        else:
+            player = await self.find_member_by_discord_id(ctx.author.id)
+            if player is None:
+                await yeet(ctx, "Vous n'êtes pas enregistré dans la smashtheque.")
+                return
+            elif player["administrated_recurring_tournaments"] == []:
+                await yeet(ctx, "Vous n'êtes administrateur d'aucun tournoi.\nPour ajouter une édition d'un tournoi dont vous n'êtes pas l'administrateur, utilisez l'ID de la série.")
+                return
+
+            #selecting the right tournament
+            if len(player["administrated_recurring_tournaments"]) > 1:
+                idx = 1
+                admin_recuring_tournaments = player["administrated_recurring_tournaments"].copy()
+                descript = ">>> " + admin_recuring_tournaments[0]["name"]
+                admin_recuring_tournaments.pop(0)
+                for tournament_entry in admin_recuring_tournaments:
+                    descript += f"\n\n" + tournament_entry["name"]
+                    idx += 1
+                embed = discord.Embed(title="Vous êtes administrateur de plusieurs tournois. Quel est le tournoi concerné ?", description=descript, color=0x2f2136)
+                
+                choice = await st_views.ask_choice(ctx, embed, player["administrated_recurring_tournaments"])
+                if choice == None:
+                    return
+                tournament = await self.find_tournament_by_id(player["administrated_recurring_tournaments"][choice]["id"])
+
+            else:
+                tournament = await self.find_tournament_by_id(player["administrated_recurring_tournaments"][0]["id"])
+
+        
         embed = discord.Embed(title=embed_title_message, description="Confirmer ?")
         embed.set_author(
             name="Smashthèque",
@@ -1015,7 +1065,8 @@ class Smashtheque(commands.Cog):
         )
         tournament_response = {
             "tournament_event": {
-                "bracket_url": bracket
+                "bracket_url": bracket,
+                "recurring_tournament_id": tournament["id"]
             }
         }
         if series_id: # add id to reply if present
@@ -1046,41 +1097,70 @@ class Smashtheque(commands.Cog):
             json.dump(admins_json, admins)
         await ctx.respond("Done !")
 
-    async def do_add_self_profile_connection(self, ctx, link, connection_field):
-        player = self.find_player_by_discord_id(ctx.author.id)
+    async def do_add_self_twitter_profile_connection(self, ctx, link):
+        player = await self.find_player_by_discord_id(ctx.author.id)
         if player is None:
             await yeet(ctx, "Vous n'êtes pas enregistré dans la smashtheque.")
             return
-        request = {}
-        request[connection_field] = link
-        url = self.api_url("player") + "/" + player["id"]
-        async with self._session.patch(url, request) as r:
+        request = {"twitter_url": link}
+        url = self.api_url("users") + "/" + str(player["user_id"])
+        async with self._session.patch(url, json=request) as r:
             if r.status == 200:
                 await self.show_confirmation(ctx, "Votre profil a été mis à jour avec succès !", link=f"{self.api_base_url}/players/{player['id']}")
             else:
-                await self.generic_error(ctx)
+                print(r)
+                print(await r.json())
+                await generic_error(ctx, r)
 
-    async def do_add_profile_connection(self, ctx, link, connection_field, discord_id):
+    async def do_add_twitter_profile_connection(self, ctx, link, discord_id):
         """adds a profile connection for someone else"""
-        player = self.find_player_by_discord_id(discord_id)
+        player = await self.find_player_by_discord_id(discord_id)
         if player is None:
             await yeet(ctx, "Ce joueur n'est pas enregistré dans la smashthèque.")
             return
-        request = {}
-        request[connection_field] = link
-        url = self.api_url("player") + "/" + player["id"]
-        async with self._session.patch(url, request) as r:
+        request = {"twitter_url": link}
+        url = self.api_url("users") + "/" +str(player["user_id"])
+        async with self._session.patch(url, json=request) as r:
             if r.status == 200:
                 await self.show_confirmation(ctx, "Ce profil a été mis à jour avec succès !", link=f"{self.api_base_url}/players/{player['id']}")
             else:
-                await self.generic_error(ctx)
+                await generic_error(ctx, r)
+
+    async def do_add_self_smashgg_profile_connection(self, ctx, link):
+        player = await self.find_player_by_discord_id(ctx.author.id)
+        if player is None:
+            await yeet(ctx, "Vous n'êtes pas enregistré dans la smashtheque.")
+            return
+        request = {"player":{"smashgg_url": link}}
+        url = self.api_url("players") + "/" + str(player["id"])
+        async with self._session.patch(url, json=request) as r:
+            if r.status == 200:
+                await self.show_confirmation(ctx, "Votre profil a été mis à jour avec succès !", link=f"{self.api_base_url}/players/{player['id']}")
+            else:
+                print(r)
+                print(await r.json())
+                await generic_error(ctx, r)
+
+    async def do_add_smashgg_profile_connection(self, ctx, link, discord_id):
+        """adds a profile connection for someone else"""
+        player = await self.find_player_by_discord_id(discord_id)
+        if player is None:
+            await yeet(ctx, "Ce joueur n'est pas enregistré dans la smashthèque.")
+            return
+        request = {"player":{"smashgg_url": link}}
+        url = self.api_url("players") + "/" +str(player["id"])
+        async with self._session.patch(url, json=request) as r:
+            if r.status == 200:
+                await self.show_confirmation(ctx, "Ce profil a été mis à jour avec succès !", link=f"{self.api_base_url}/players/{player['id']}")
+            else:
+                await generic_error(ctx, r)
 
     # -------------------------------------------------------------------------
     # COMMANDS
     # -------------------------------------------------------------------------
 
-    @commands.command(usage="<nom>")
-    async def creerville(self, ctx, *, name):
+    @commands.slash_command()
+    async def creerville(self, ctx, name):
         """cette commande va vous permettre d'ajouter une ville dans la Smashthèque.
         \n\nVous devez préciser son nom.
         \n\n\nExemples : \n- creerville Paris\n- creerville Lyon\n"""
@@ -1091,8 +1171,8 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<nom>")
-    async def creerpays(self, ctx, *, name):
+    @commands.slash_command()
+    async def creerpays(self, ctx, name):
         """cette commande va vous permettre d'ajouter un pays dans la Smashthèque.
         \n\nVous devez préciser son nom.
         \n\n\nExemples : \n- creerpays Belgique\n"""
@@ -1170,7 +1250,7 @@ class Smashtheque(commands.Cog):
     async def quiest(self, ctx, *, target_member: discord.Member):
         """Cette commande vous permet de savoir qui est le joueur de la Smashthèque associé à un compte Discord."""
         try:
-            await self.do_showplayer(ctx, target_member)
+            await self.do_showplayer(ctx, target_member, False)
         except:
             rollbar.report_exc_info()
             raise
@@ -1179,14 +1259,14 @@ class Smashtheque(commands.Cog):
     async def quiest(self, ctx, target_member: discord.Member):
 
         try:
-            await self.do_showplayer(ctx, target_member)
+            await self.do_showplayer(ctx, target_member, True)
         except:
             rollbar.report_exc_info()
             raise
 
     @commands.slash_command(guild_ids=[737431333478989907])
     async def quisuisje(self, ctx):
-        """Cette commande vous permet de savoir qui est le joueur de la Smashthèque associé à votre compte Discord."""
+        """Permet de savoir qui est le joueur de la Smashthèque associé à votre compte Discord."""
         try:
             await self.do_showplayer(ctx, ctx.author)
         except:
@@ -1197,14 +1277,6 @@ class Smashtheque(commands.Cog):
     async def changerpseudo(self, ctx, name:str):
         try:
             await self.do_editname(ctx, ctx.author.id, name)
-        except:
-            rollbar.report_exc_info()
-            raise
-
-    @commands.slash_command(guild_ids=[737431333478989907])
-    async def persos(self, ctx):
-        try:
-            await self.do_listavailablecharacters(ctx)
         except:
             rollbar.report_exc_info()
             raise
@@ -1291,29 +1363,20 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @commands.command()
-    async def tournoi(self, ctx, bracket: Optional[str]):
-        """Cette commande permet aux TOs d'ajouter une édition de leur tournois dans la smashtheque"""
-        try:
-            await self.do_addedition(ctx, bracket)
-        except:
-            rollbar.report_exc_info()
-            raise
-
     @commands.slash_command(guild_ids=[737431333478989907])
     async def ajouttournoi(self, ctx, 
                             bracket: Option(
                                 SlashCommandOptionType.string, "Lien du bracket"), 
                             graph: Option(
                                 SlashCommandOptionType.attachment, "Graph du tournoi", required=False),
-                            series_id: Option(
+                            serie: Option(
                                 SlashCommandOptionType.integer, "ID de la série", required=False)
                                 ):
         """
         Cette commande permet aux joueurs d'ajouter une édition dans la smashthèque.
         """
         try:
-            await self.do_insertedition(ctx, series_id, graph, bracket)
+            await self.do_insertedition(ctx, serie, graph, bracket)
         except:
             rollbar.report_exc_info()
             raise
@@ -1340,7 +1403,7 @@ class Smashtheque(commands.Cog):
     async def ajoutertwitter(self, ctx, lien: Option(
                                 SlashCommandOptionType.string, "Lien de votre compte twitter")):
         try:
-            await self.do_add_self_profile_connection(ctx, lien, "twitter_url")
+            await self.do_add_self_twitter_profile_connection(ctx, lien)
         except:
             rollbar.report_exc_info()
             raise
@@ -1349,10 +1412,10 @@ class Smashtheque(commands.Cog):
     async def inserertwitter(self, ctx, lien: Option(
                                 SlashCommandOptionType.string, "Lien de votre compte twitter"), 
                                 discord_id: Option(
-                                    SlashCommandOptionType.string, "ID discord du joueur", name= "ID discord")
+                                    SlashCommandOptionType.string, "ID discord du joueur")
                                 ):
         try:
-            await self.do_add_profile_connection(ctx, lien, "twitter_url", discord_id)
+            await self.do_add_twitter_profile_connection(ctx, lien, "twitter_url", discord_id)
         except:
             rollbar.report_exc_info()
             raise
@@ -1361,7 +1424,7 @@ class Smashtheque(commands.Cog):
     async def ajoutersmashgg(self, ctx, lien: Option(
                                 SlashCommandOptionType.string, "Lien de votre compte smash.gg")):
         try:
-            await self.do_add_self_profile_connection(ctx, lien, "smashgg_url")
+            await self.do_add_self_smashgg_profile_connection(ctx, lien)
         except:
             rollbar.report_exc_info()
             raise
@@ -1370,10 +1433,10 @@ class Smashtheque(commands.Cog):
     async def inserersmashgg(self, ctx, lien: Option(
                                 SlashCommandOptionType.string, "Lien du compte smash.gg"), 
                                 discord_id: Option(
-                                    SlashCommandOptionType.string, "ID discord du joueur", name= "ID discord")
+                                    SlashCommandOptionType.string, "ID discord du joueur")
                                 ):
         try:
-            await self.do_add_profile_connection(ctx, lien, "smashgg_url", discord_id)
+            await self.do_add_smashgg_profile_connection(ctx, lien, discord_id)
         except:
             rollbar.report_exc_info()
             raise
