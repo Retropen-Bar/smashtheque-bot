@@ -1188,7 +1188,7 @@ class Smashtheque(commands.Cog):
     @discord.option("perso", str)
     @discord.option("team", str, required=False)
     @discord.option("ID Discord", str, required=False)
-    async def creerjoueur(self, ctx, pseudo, perso, team, discord_id: discord.Option(int, required=False)):
+    async def creerjoueur(self, ctx, pseudo, perso, team, discord_id):
         """cette commande va vous permettre d'ajouter un joueur dans la Smashthèque."""
 
         try:
