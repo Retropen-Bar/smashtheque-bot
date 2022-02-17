@@ -668,7 +668,7 @@ class Smashtheque(commands.Cog):
         discord_user = format_discord_user(discord_id)
         await self.show_confirmation(ctx, f"Le compte Discord {discord_user} a été dissocié du joueur {player_name}.", link=f"{self.api_base_url}/players/{player['id']}")
 
-    async def do_showplayer(self, ctx, target_member, ephemeral = False):
+    async def do_showplayer(self, ctx: discord.ApplicationContext, target_member, ephemeral = False):
         discord_id = target_member.id
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
@@ -680,7 +680,7 @@ class Smashtheque(commands.Cog):
             url=f"{self.api_base_url}/players/{player['id']}"
         )
         self.embed_player(embed, player)
-        embed.set_footer(text=f"Pour {ctx.author}", icon_url=ctx.author.avatar_url)
+        embed.set_footer(text=f"Pour {ctx.author}", icon_url=ctx.author.display_avatar.url)
         if ephemeral:
             view = st_views.makeEphemeralPublic()
             await ctx.respond(embed=embed, ephemeral = True, view = view)
