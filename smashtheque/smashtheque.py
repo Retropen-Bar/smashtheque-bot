@@ -680,6 +680,7 @@ class Smashtheque(commands.Cog):
             url=f"{self.api_base_url}/players/{player['id']}"
         )
         self.embed_player(embed, player)
+        embed.set_footer(text=f"Pour {ctx.author}")
         if ephemeral:
             view = st_views.makeEphemeralPublic()
             await ctx.respond(embed=embed, ephemeral = True, view = view)
