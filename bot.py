@@ -13,6 +13,8 @@ from error_handler import CommandErrorHandler
 
 intents = Intents.none()
 
+intents.messages = True
+
 # make a minimalist bot with cogs
 client = commands.Bot(command_prefix='&', intents=intents)
 
