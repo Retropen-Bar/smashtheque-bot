@@ -1213,7 +1213,7 @@ class Smashtheque(commands.Cog):
 
     @commands.slash_command(user_ids=is_admin_smashtheque())
     @discord.option("pseudo", str) #autocomplete
-    @discord.option("discord_id", int) 
+    @discord.option("discord_id", str) 
     async def associer(self, ctx, pseudo, discord_id):
         """cette commande va vous permettre d'associer un compte Discord à un joueur de la Smashthèque.
         \n\nVous devez préciser son pseudo et son ID Discord.
