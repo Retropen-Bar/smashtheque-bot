@@ -182,7 +182,7 @@ class Smashtheque(commands.Cog):
         self.creerjoueur.options[2].autocomplete = self.autocomplete_team_name
         self.creerjoueur.options[2].required = False
 
-        self.associer.options[1].autocomplete = self.autocomplete_st_name
+        self.associer.options[0].autocomplete = self.autocomplete_st_name
 
     def cog_unload(self):
         asyncio.create_task(self._session.close())
