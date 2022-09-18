@@ -222,7 +222,7 @@ class Smashtheque(commands.Cog):
             return character
 
         if self.is_character_name(label) or label.lower() == "pyra" or label.lower() == "mythra":
-            character = await self.find_character_by_name(ctx, label)
+            character = await self.find_character_by_name(label)
             return character
 
         await yeet(ctx, f"Perso {label} non reconnu")
@@ -414,6 +414,7 @@ class Smashtheque(commands.Cog):
                 personnages.append(format_character(character))
         elif "character_ids" in _player:
             for character_id in player.character_ids:
+                print(character_id, self._characters_cache)
                 personnages.append(format_character(self._characters_cache[str(character_id)]))
         if len(personnages) < 1:
             personnages.append("\u200b")
