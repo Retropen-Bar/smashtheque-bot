@@ -579,11 +579,11 @@ class Smashtheque(commands.Cog):
         # 3: discord ID
 
         current_stage = 0
-
+        char = await self.find_character_by_name(perso)
         # init de la réponse
         response = {
             "name": pseudo,
-            "character_ids": self.find_character_by_name(perso),
+            "character_ids": char,
             "creator_discord_id": "",
             "team_ids": []
         }
