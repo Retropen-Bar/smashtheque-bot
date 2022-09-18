@@ -453,6 +453,7 @@ class Smashtheque(commands.Cog):
             title="Vous allez créer le joueur suivant :",
             colour=discord.Colour.blue(),
         )
+        print(player)
         self.embed_player(embed, player)
         doit = await st_views.ask_confirmation(ctx, embed)
         if doit:
