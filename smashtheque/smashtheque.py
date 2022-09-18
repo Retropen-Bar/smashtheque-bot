@@ -385,7 +385,7 @@ class Smashtheque(commands.Cog):
         await ctx.respond(embed=embed)
 
     async def raise_not_linked(self, ctx):
-        await self.raise_message(ctx, f"Votre compte Discord n'est associé à aucun joueur.\nUtilisez `{ctx.clean_prefix}jesuis` pour associer votre compte à un joueur.")
+        await self.raise_message(ctx, f"Votre compte Discord n'est associé à aucun joueur.\nUtilisez `/jesuis` pour associer votre compte à un joueur.")
 
     async def show_confirmation(self, ctx, message, link=None):
         embed = discord.Embed(
