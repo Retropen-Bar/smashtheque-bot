@@ -248,7 +248,7 @@ class Smashtheque(commands.Cog):
         return None
 
     # this method is called when we are sure @name exists as a key of @_characters_names_cache
-    async def find_character_by_name(self, ctx, name):
+    async def find_character_by_name(self, name):
         if name.lower() == "pyra" or name.lower() == "mythra":
             character_id = self._characters_names_cache[normalize_str("pyra/mythra")]
         else:
