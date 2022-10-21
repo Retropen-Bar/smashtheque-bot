@@ -1,6 +1,6 @@
 import discord
 
-async def respond_or_edit(ctx: discord.ApplicationContext, text = None, embed=None, attachments=None, view=None):
+async def respond_or_edit(ctx: discord.ext.commands.Context, text = None, embed=None, attachments=None, view=None):
     """Check if the interaction has already been replied. If so, edit the message, else respond """
     kwargs = {}
     if text:

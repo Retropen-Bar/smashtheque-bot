@@ -1,8 +1,6 @@
-from discord.mentions import AllowedMentions
+from discord import app_commands
 from discord.ext import commands
-from discord.commands import permissions
-from discord.commands import Option
-from discord.enums import SlashCommandOptionType
+
 
 #from redbot.core.utils.predicates import MessagePredicate
 
@@ -103,12 +101,14 @@ def return_false(_):
     return False
 
 def is_admin_smashtheque():
-    """This is a decorator"""
-    with open("config/admins.json", "r") as admins:
-        a = json.load(admins)
-        print(a)
-        admins.close()
-        return a
+      # the check
+    async def actual_check(interaction: discord.Interaction):
+        with open("config/admins.json", "r") as admins:
+            a = json.load(admins)
+            print(a)
+            admins.close()
+            return interaction.user.id in a  # returning the check
+    return app_commands.check(actual_check)
         
 class Map(UserDict):
     def __getattr__(self, attr):
@@ -160,13 +160,22 @@ class Smashtheque(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        bot.loop.create_task(self.initialize())
-        self.set_autocomplete_functions()
+        asyncio.create_task(self.initialize())
+        #self.set_autocomplete_functions()
+
+        self.ctx_menu = app_commands.ContextMenu(
+            name='Qui est',
+            callback=self.quiest,
+        )
+        self.bot.tree.add_command(self.ctx_menu)
+
 
     def set_autocomplete_functions(self):
         """To autocomplete the st name, we need aiohttp, but by just using a normal autocomplete, we can't access the session
         So, instead, we set here the arguments. 
         When adding a command that uses the session, or anything else in the Cog object, it need to be registered here"""
+        return
+        print(self.jesuis)
         self.jesuis.options[0].autocomplete = self.autocomplete_st_name
 
         self.ajouterperso.options[0].autocomplete = self.autocomplete_characters
@@ -186,6 +195,7 @@ class Smashtheque(commands.Cog):
 
     def cog_unload(self):
         asyncio.create_task(self._session.close())
+        self.bot.tree.remove_command(self.ctx_menu.name, type=self.ctx_menu.type)
 
     def api_url(self, collection):
         return f"{self.api_base_url}/api/v1/{collection}"
@@ -348,8 +358,8 @@ class Smashtheque(commands.Cog):
             player = await response.json()
             return player if player != [] else None
 
-    async def autocomplete_st_name(self, interaction):
-        url = self.api_url("players") + "?by_keyword=" + interaction.value + "&order=points_online_all_time_desc"
+    async def autocomplete_st_name(self, interaction: discord.Interaction, current: str):
+        url = self.api_url("players") + "?by_keyword=" + current + "&order=points_online_all_time_desc"
         async with self._session.get(url) as resp:
             if resp.status == 200:
                 r = await resp.json()
@@ -358,8 +368,8 @@ class Smashtheque(commands.Cog):
                 print("SERVER ROOM ON FIRE")
                 return None
 
-    async def autocomplete_team_name(self, interaction):
-        url = self.api_url("teams") + "?by_keyword=" + interaction.value
+    async def autocomplete_team_name(self, interaction: discord.Interaction, current: str):
+        url = self.api_url("teams") + "?by_keyword=" + current
         async with self._session.get(url) as resp:
             if resp.status == 200:
                 r = await resp.json()
@@ -368,13 +378,13 @@ class Smashtheque(commands.Cog):
                 print("SERVER ROOM ON FIRE")
                 return None
 
-    async def autocomplete_current_team_name(self, interaction):
-        player = await self.find_player_by_discord_id(interaction.interaction.user.id)
-        return list(filter(lambda k: interaction.value in k, player["team_names"]))[:23]
+    async def autocomplete_current_team_name(self, interaction: discord.Interaction, current: str):
+        player = await self.find_player_by_discord_id(interaction.user.id)
+        return list(filter(lambda k: current in k, player["team_names"]))[:23]
 
-    async def autocomplete_characters(self, interaction):
+    async def autocomplete_characters(self, interaction: discord.Interaction, current: str):
         #await self.fetch_characters_if_needed()
-        return list(filter(lambda k: interaction.value in k, self._verbal_characters_names_cache))[:23]
+        return list(filter(lambda k: current in k, self._verbal_characters_names_cache))[:23]
 
     async def raise_message(self, ctx, message):
         embed = discord.Embed(title=message)
@@ -414,7 +424,7 @@ class Smashtheque(commands.Cog):
                 personnages.append(format_character(character))
         elif "character_ids" in _player:
             for character_id in player.character_ids:
-                print(character_id, self._characters_cache)
+                print(character_id)
                 personnages.append(format_character(self._characters_cache[str(character_id)]))
         if len(personnages) < 1:
             personnages.append("\u200b")
@@ -602,7 +612,7 @@ class Smashtheque(commands.Cog):
         response["name"] = response["name"].rstrip()
         await self.confirm_create_player(ctx, response)
 
-    async def do_link(self, ctx:discord.ApplicationContext, pseudo, discord_id):
+    async def do_link(self, ctx:commands.Context, pseudo, discord_id):
         player = await self.find_player_by_discord_id(discord_id)
         if player != None:
             embed = discord.Embed(title="Un joueur est déjà associé à ce compte Discord. Contactez un admin pour dissocier ce compte Discord de ce joueur.")
@@ -670,7 +680,7 @@ class Smashtheque(commands.Cog):
         discord_user = format_discord_user(discord_id)
         await self.show_confirmation(ctx, f"Le compte Discord {discord_user} a été dissocié du joueur {player_name}.", link=f"{self.api_base_url}/players/{player['id']}")
 
-    async def do_showplayer(self, ctx: discord.ApplicationContext, target_member, ephemeral = False):
+    async def do_showplayer(self, ctx: commands.Context, target_member, ephemeral = False):
         discord_id = target_member.id
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
@@ -1023,7 +1033,7 @@ class Smashtheque(commands.Cog):
                 await yeet(ctx, "Ce tournoi est déjà enregistré dans la Smashthèque.")
                 return
 
-    async def do_insertedition(self, ctx:discord.ApplicationContext, series_id, attachement, bracket):
+    async def do_insertedition(self, ctx:commands.Context, series_id, attachement, bracket):
         embed_title_message = "Vous êtes sur le point d'ajouter une édition" # Will be overriden if series id is present
         if series_id:
             tournament = await self.find_tournament_by_id(series_id)
@@ -1162,284 +1172,256 @@ class Smashtheque(commands.Cog):
     # COMMANDS
     # -------------------------------------------------------------------------
 
-    @commands.slash_command()
-    async def creerville(self, ctx, name):
+    @app_commands.command(name="creerville")
+    async def creerville(self, intteraction: discord.Interaction, name: str):
         """cette commande va vous permettre d'ajouter une ville dans la Smashthèque.
         \n\nVous devez préciser son nom.
         \n\n\nExemples : \n- creerville Paris\n- creerville Lyon\n"""
 
         try:
-            await self.do_createlocation(ctx, name)
+            await self.do_createlocation(intteraction, name)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command()
-    async def creerpays(self, ctx, name):
+    @app_commands.command(name="creerpays")
+    async def creerpays(self, intteraction: discord.Interaction, name:str):
         """cette commande va vous permettre d'ajouter un pays dans la Smashthèque.
         \n\nVous devez préciser son nom.
         \n\n\nExemples : \n- creerpays Belgique\n"""
 
         try:
-            await self.do_createlocation(ctx, name, country=True)
+            await self.do_createlocation(intteraction, name, country=True)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command()
-    @discord.option("pseudo", str)
-    @discord.option("perso", str)
-    @discord.option("team", str, required=False)
-    @discord.option("id_discord", str, required=False)
-    async def creerjoueur(self, ctx, pseudo, perso, team, id_discord):
+    @app_commands.autocomplete(team=autocomplete_team_name)
+    @app_commands.autocomplete(perso=autocomplete_characters)
+    @app_commands.command(name="creerjoueur")
+    async def creerjoueur(self, intteraction: discord.Interaction, pseudo:str, perso:str, team:str = None, id_discord:str = None):
         """cette commande va vous permettre d'ajouter un joueur dans la Smashthèque."""
 
         try:
-            await self.do_addplayer(ctx, pseudo, perso, team, id_discord)
+            await self.do_addplayer(intteraction, pseudo, perso, team, id_discord)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command()
-    @discord.option("pseudo", str) # name autocomplete registered during init
-    async def jesuis(self, ctx,  pseudo):
+    @app_commands.command(name="jesuis")
+    @app_commands.autocomplete(pseudo=autocomplete_st_name)
+    async def jesuis(self, intteraction: discord.Interaction,  pseudo: str):
         """cette commande va vous permettre d'associer votre compte Discord à un joueur de la Smashthèque.
         \n\nVous devez préciser un pseudo.
         \n\n\nExemples : \n- jesuis Pixel\n- jesuis red\n"""
 
         try:
-            await self.do_link(ctx, pseudo, ctx.author.id)
+            await self.do_link(intteraction, pseudo, intteraction.author.id)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command(user_ids=is_admin_smashtheque())
-    @discord.option("pseudo", str) #autocomplete
-    @discord.option("discord_id", str) 
-    async def associer(self, ctx, pseudo, discord_id):
+    @app_commands.command(name="associer")
+    @app_commands.autocomplete(pseudo=autocomplete_st_name)
+    @is_admin_smashtheque()
+    async def associer(self, intteraction: discord.Interaction, pseudo:str, discord_id: str):
         """cette commande va vous permettre d'associer un compte Discord à un joueur de la Smashthèque.
         \n\nVous devez préciser son pseudo et son ID Discord.
         \n\n\nExemples : \n- associer Pixel 608210202952466464\n- associer red 332894758076678144\n"""
 
         try:
-            await self.do_link(ctx, pseudo, discord_id)
+            await self.do_link(intteraction, pseudo, discord_id)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command()
-    async def jenesuispas(self, ctx):
+    @app_commands.command(name="jenesuispas")
+    async def jenesuispas(self, intteraction: discord.Interaction):
         """cette commande permet de dissocier votre compte Discord d'un joueur de la Smashthèque."""
-
         try:
-            await self.do_unlink(ctx, ctx.author)
+            await self.do_unlink(intteraction, intteraction.author)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<ID Discord>")
-    @commands.check(is_admin_smashtheque)
-    async def dissocier(self, ctx, *, target_member: discord.Member):
+    @app_commands.command(name="dissocier")
+    @is_admin_smashtheque()
+    async def dissocier(self, intteraction: discord.Interaction, id_discord: str):
         """cette commande permet de dissocier un compte Discord d'un joueur de la Smashthèque."""
 
         try:
-            await self.do_unlink(ctx, target_member)
+            await self.do_unlink(intteraction, id_discord)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.command(usage="<ID Discord>")
-    @commands.check(is_admin_smashtheque)
-    async def quiest(self, ctx, *, target_member: discord.Member):
+    @app_commands.command(name="quiest")
+    async def quiest(self, intteraction: discord.Interaction, id_discord: str):
         """Cette commande vous permet de savoir qui est le joueur de la Smashthèque associé à un compte Discord."""
         try:
-            await self.do_showplayer(ctx, target_member, False)
+            await self.do_showplayer(intteraction, id_discord, False)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.user_command(name="qui est", )
-    async def quiest(self, ctx, target_member: discord.Member):
-
+    async def quiest(self, interaction: discord.Interaction, target_member: discord.Member):
+        # IMPORTANT : d.py does not support context menu in cogs. The context menu is actually registered in self.__init__
         try:
-            await self.do_showplayer(ctx, target_member, True)
+            await self.do_showplayer(interaction, target_member, True)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command()
-    async def quisuisje(self, ctx):
+    @app_commands.command(name="quisuisje")
+    async def quisuisje(self, intteraction: discord.Interaction):
         """Permet de savoir qui est le joueur de la Smashthèque associé à votre compte Discord."""
         try:
-            await self.do_showplayer(ctx, ctx.author)
+            await self.do_showplayer(intteraction, intteraction.author)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command()
-    async def changerpseudo(self, ctx, name:str):
+    @app_commands.command(name="changerpseudo")
+    async def changerpseudo(self, intteraction: discord.Interaction, name:str):
         try:
-            await self.do_editname(ctx, ctx.author.id, name)
+            await self.do_editname(intteraction, intteraction.author.id, name)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command()
-    @discord.option("persos", str) # name autocomplete registered during init
-    async def ajouterperso(self, ctx, persos):
+    @app_commands.command(name="ajouterperso")
+    @app_commands.autocomplete(persos=autocomplete_characters)
+    async def ajouterperso(self, intteraction: discord.Interaction, persos: str):
         try:
-            await self.do_addcharacters(ctx, ctx.author.id, persos)
+            await self.do_addcharacters(intteraction, intteraction.author.id, persos)
         except:
             rollbar.report_exc_info()
             raise
     
-    @commands.slash_command()
-    @discord.option("persos", str) # name autocomplete registered during init
-    async def enleverperso(self, ctx, *, persos):
+    @app_commands.command(name="enleverperso")
+    @app_commands.autocomplete(persos=autocomplete_characters)
+    async def enleverperso(self, intteraction: discord.Interaction, persos: str):
         try:
-            await self.do_removecharacters(ctx, ctx.author.id, persos)
+            await self.do_removecharacters(intteraction, intteraction.user.id, persos)
         except:
             rollbar.report_exc_info()
             raise
     """
     It is not possible to take an unknown number of arguments, so we have to use a string.
     @commands.command(usage="<emojis ou noms de persos>")
-    async def remplacerpersos(self, ctx, *, emojis):
+    async def remplacerpersos(self, intteraction: discord.Interaction, *, emojis):
         try:
-            await self.do_replacecharacters(ctx, ctx.author.id, emojis)
+            await self.do_replacecharacters(intteraction, intteraction.author.id, emojis)
         except:
             rollbar.report_exc_info()
             raise"""
 
-    @commands.slash_command()
-    @discord.option("equipe", str) # name autocomplete registered during init
-    async def quitter(self, ctx, equipe):
+    @app_commands.command(name="quitter")
+    @app_commands.autocomplete(equipe=autocomplete_team_name)
+    async def quitter(self, intteraction: discord.Interaction, equipe:str):
         try:
-            await self.do_removeteam(ctx, ctx.author.id, equipe)
+            await self.do_removeteam(intteraction, intteraction.user.id, equipe)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command()
-    @discord.option("equipe", str) # name autocomplete registered during init
-    async def integrer(self, ctx, equipe):
+    @app_commands.command(name="integrer")
+    @app_commands.autocomplete(equipe=autocomplete_team_name)
+    async def integrer(self, intteraction: discord.Interaction, equipe:str):
         try:
-            await self.do_addteam(ctx, ctx.author.id, equipe)
+            await self.do_addteam(intteraction, intteraction.author.id, equipe)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command()
-    @discord.option("nom", str) # name autocomplete registered during init
-    async def chercherjoueur(self, ctx, nom):
+    @app_commands.command(name="chercherjoueur")
+    @app_commands.autocomplete(nom=autocomplete_st_name)
+    async def chercherjoueur(self, intteraction: discord.Interaction, nom:str):
         try:
-            await self.do_findplayer(ctx, nom)
+            await self.do_findplayer(intteraction, nom)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.command()
-    async def pileouface(self, ctx):
-        try:
-            await self.do_chifoumi(ctx)
-        except:
-            rollbar.report_exc_info()
-            raise
-
-    @commands.slash_command()
-    async def majlogo(self, ctx, logo: Option(SlashCommandOptionType.attachment, "Logo de votre équipe")):
+    @app_commands.command(name="majlogo")
+    async def majlogo(self, intteraction: discord.Interaction, logo: discord.Attachment):
         """Utilisez cette commande avec une image pour changer le logo de votre team. \n
         Vous devez être administrateur de la team dont vous voulez changer le logo."""
         try:
-            await self.maj_team_infos(ctx, logo, "logo")
+            await self.maj_team_infos(intteraction, logo, "logo")
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command()
-    async def majroster(self, ctx, logo: Option(SlashCommandOptionType.attachment, "Roaster de votre équipe")):
+    @app_commands.command(name="majroaster")
+    async def majroaster(self, intteraction: discord.Interaction, roaster: discord.Attachment):
         """Utilisez cette commande avec une image pour changer le roster de votre team. \n
         Vous devez être administrateur de la team dont vous voulez changer le roster."""
         try:
-            await self.maj_team_infos(ctx, logo, "roster")
+            await self.maj_team_infos(intteraction, roaster, "roster")
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command()
-    async def ajouttournoi(self, ctx, 
-                            bracket: Option(
-                                SlashCommandOptionType.string, "Lien du bracket"), 
-                            graph: Option(
-                                SlashCommandOptionType.attachment, "Graph du tournoi", required=False),
-                            serie: Option(
-                                SlashCommandOptionType.integer, "ID de la série", required=False)
-                                ):
+    @app_commands.command(name="ajouttournoi")
+    @app_commands.describe(bracket="Lien du bracket", graph="Graph du tournoi", serie="ID de la série")
+    async def ajouttournoi(self, intteraction: discord.Interaction, bracket: str, graph: str = None,serie: str = None):
         """
         Cette commande permet aux joueurs d'ajouter une édition dans la smashthèque.
         """
         try:
-            await self.do_insertedition(ctx, serie, graph, bracket)
+            await self.do_insertedition(intteraction, serie, graph, bracket)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.is_owner()
-    @commands.command()
-    async def addadmin(self, ctx, member:discord.Member):
+    @is_admin_smashtheque()
+    @app_commands.command()
+    async def addadmin(self, intteraction: discord.Interaction, member:discord.Member):
         try:
-            await self.do_add_admin_smashtheque(ctx, member)
+            await self.do_add_admin_smashtheque(intteraction, member)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.check(is_admin_smashtheque)
-    @commands.command()
-    async def forceteam(self, ctx, smashtheque_user_id, short_team_name, remove:bool = False):
+    @is_admin_smashtheque()
+    @app_commands.command(name="forceteam")
+    async def forceteam(self, intteraction: discord.Interaction, smashtheque_user_id:int, short_team_name:str, remove:bool = False):
         try:
-            await self.do_force_add_team(ctx, smashtheque_user_id, short_team_name, remove)
+            await self.do_force_add_team(intteraction, smashtheque_user_id, short_team_name, remove)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command()
-    async def ajoutertwitter(self, ctx, lien: Option(
-                                SlashCommandOptionType.string, "Lien de votre compte twitter")):
+    @app_commands.command(name="ajoutertwitter")
+    async def ajoutertwitter(self, intteraction: discord.Interaction, lien: str):
         try:
-            await self.do_add_self_twitter_profile_connection(ctx, lien)
+            await self.do_add_self_twitter_profile_connection(intteraction, lien)
+        except:
+            rollbar.report_exc_info()
+            raise
+    @is_admin_smashtheque()
+    @app_commands.command(name="inserttwitter")
+    async def inserertwitter(self, intteraction: discord.Interaction, lien: str, discord_id: int):
+        try:
+            await self.do_add_twitter_profile_connection(intteraction, lien, "twitter_url", discord_id)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command(user_ids=is_admin_smashtheque())
-    async def inserertwitter(self, ctx, lien: Option(
-                                SlashCommandOptionType.string, "Lien de votre compte twitter"), 
-                                discord_id: Option(
-                                    SlashCommandOptionType.string, "ID discord du joueur")
-                                ):
+    @app_commands.command(name="ajoutersmashgg")
+    async def ajoutersmashgg(self, intteraction: discord.Interaction, lien: str):
         try:
-            await self.do_add_twitter_profile_connection(ctx, lien, "twitter_url", discord_id)
+            await self.do_add_self_smashgg_profile_connection(intteraction, lien)
         except:
             rollbar.report_exc_info()
             raise
 
-    @commands.slash_command()
-    async def ajoutersmashgg(self, ctx, lien: Option(
-                                SlashCommandOptionType.string, "Lien de votre compte smash.gg")):
+    @is_admin_smashtheque()
+    @app_commands.command(name="inserersmashgg")
+    async def inserersmashgg(self, intteraction: discord.Interaction, lien: str, discord_id: str):
         try:
-            await self.do_add_self_smashgg_profile_connection(ctx, lien)
-        except:
-            rollbar.report_exc_info()
-            raise
-
-    @commands.slash_command(user_ids=is_admin_smashtheque())
-    async def inserersmashgg(self, ctx, lien: Option(
-                                SlashCommandOptionType.string, "Lien du compte smash.gg"), 
-                                discord_id: Option(
-                                    SlashCommandOptionType.string, "ID discord du joueur")
-                                ):
-        try:
-            await self.do_add_smashgg_profile_connection(ctx, lien, discord_id)
+            await self.do_add_smashgg_profile_connection(intteraction, lien, discord_id)
         except:
             rollbar.report_exc_info()
             raise
