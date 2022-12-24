@@ -26,6 +26,8 @@ from random import choice
 from typing import Optional
 import inspect
 
+SMASHTHEQUE_GUILD_ID = 737431333478989907
+
 def normalize_str(s):
     s1 = ''.join(
         c for c in unicodedata.normalize('NFD', s)
@@ -34,8 +36,8 @@ def normalize_str(s):
     s2 = re.sub("[^a-zA-Z]+", "", s1)
     return s2.lower()
 
-async def yeet(ctx, erreur):
-    """lever des erreurs"""
+async def yeet(ctx: discord.Interaction, erreur):
+    """Raise a user error. Does not report it."""
     embed = discord.Embed(
         title=f"Erreur dans la commande /{ctx.command.name} :",
         description=erreur,
@@ -45,10 +47,10 @@ async def yeet(ctx, erreur):
         name="Smashthèque",
         icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
     )
-    await ctx.respond(embed=embed)
+    await ctx.response.send_message(embed=embed)
 
-async def uniqueyeet(ctx, erreur, playername):
-    """lever des erreurs en ajoutant le nom du joueur"""
+async def uniqueyeet(ctx: discord.Interaction, erreur, playername):
+    """ Raise an error with a specific part of a command. """
     global failed_lines
     failed_lines.append(playername)
     embed = discord.Embed(
@@ -60,9 +62,10 @@ async def uniqueyeet(ctx, erreur, playername):
         name="Smashthèque",
         icon_url="https://cdn.discordapp.com/avatars/745022618356416572/c8fa739c82cdc5a730d9bdf411a552b0.png?size=1024",
     )
-    await ctx.respond(embed=embed)
+    await ctx.response.send_message(embed=embed)
 
 async def generic_error(ctx, error):
+    "Generic error, will send an error message to the user and raise it to the developpers."
     await yeet(ctx, "T'as cassé le bot, GG. Tu peux contacter <@332894758076678144> ou <@608210202952466464> s'il te plaît ?")
     rollbar.report_exc_info(sys.exc_info(), error)
 
@@ -108,8 +111,16 @@ def is_admin_smashtheque():
             print(a)
             admins.close()
             return interaction.user.id in a  # returning the check
-    return app_commands.check(actual_check)
-        
+    return commands.check(actual_check)
+
+def check_is_admin_smashtheque():
+    """This is a decorator"""
+    with open("config/admins.json", "r") as admins:
+        a = json.load(admins)
+        print(a)
+        admins.close()
+        return a
+
 class Map(UserDict):
     def __getattr__(self, attr):
         val = self.data[attr]
@@ -135,7 +146,7 @@ class Smashtheque(commands.Cog):
         else:
             rollbar_env = 'production'
 
-        ##rollbar.init(rollbar_token, rollbar_env)
+        rollbar.init(rollbar_token, "development")
 
         try:
             self.api_base_url = os.environ['SMASHTHEQUE_API_URL']
@@ -156,11 +167,11 @@ class Smashtheque(commands.Cog):
         except:
             rollbar.report_exc_info()
             raise
+
         print("Smashthèque cog loaded")
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        asyncio.create_task(self.initialize())
         #self.set_autocomplete_functions()
 
         self.ctx_menu = app_commands.ContextMenu(
@@ -169,6 +180,11 @@ class Smashtheque(commands.Cog):
         )
         self.bot.tree.add_command(self.ctx_menu)
 
+    @commands.Cog.listener()
+    async def on_ready(self):
+        print("syncing ...")
+        await self.bot.tree.sync()
+        print("synced")
 
     def set_autocomplete_functions(self):
         """To autocomplete the st name, we need aiohttp, but by just using a normal autocomplete, we can't access the session
@@ -292,7 +308,7 @@ class Smashtheque(commands.Cog):
             return tournament
 
     async def find_tournament_by_name(self, name):
-        request_url = "{0}?by_name={1}".format(self.api_url("teams"), short_name)
+        request_url = "{0}?by_name={1}".format(self.api_url("tournaments"), name)
         async with self._session.get(request_url) as response:
             teams = await response.json()
             if teams != []:
@@ -373,18 +389,21 @@ class Smashtheque(commands.Cog):
         async with self._session.get(url) as resp:
             if resp.status == 200:
                 r = await resp.json()
-                return list(dict.fromkeys([p["name"] for p in r])) # remove any duplicates from list
+                choices = list(dict.fromkeys([p["name"] for p in r])) # remove any duplicates from list
+                return [app_commands.Choice(name=choice, value=choice) for choice in choices]
             else:
                 print("SERVER ROOM ON FIRE")
                 return None
 
     async def autocomplete_current_team_name(self, interaction: discord.Interaction, current: str):
         player = await self.find_player_by_discord_id(interaction.user.id)
-        return list(filter(lambda k: current in k, player["team_names"]))[:23]
+        choices = list(filter(lambda k: current in k, player["team_names"]))[:23]
+        return [app_commands.Choice(name=choice, value=choice) for choice in choices]
 
     async def autocomplete_characters(self, interaction: discord.Interaction, current: str):
         #await self.fetch_characters_if_needed()
-        return list(filter(lambda k: current in k, self._verbal_characters_names_cache))[:23]
+        choices = list(filter(lambda k: current in k, self._verbal_characters_names_cache))[:23]
+        return [app_commands.Choice(name=choice, value=choice) for choice in choices]
 
     async def raise_message(self, ctx, message):
         embed = discord.Embed(title=message)
@@ -425,7 +444,7 @@ class Smashtheque(commands.Cog):
         elif "character_ids" in _player:
             for character_id in player.character_ids:
                 print(character_id)
-                personnages.append(format_character(self._characters_cache[str(character_id)]))
+                personnages.append(format_character(self._characters_cache[str(character_id["id"])]))
         if len(personnages) < 1:
             personnages.append("\u200b")
 
@@ -440,7 +459,7 @@ class Smashtheque(commands.Cog):
                 team_names.append(format_team(team))
         elif "team_ids" in _player:
             for team_id in player.team_ids:
-                team_names.append(format_team(self._teams_cache[str(team_id)]))
+                team_names.append(format_team(self._teams_cache[str(team_id["id"])]))
         if len(team_names) > 0:
             embed.add_field(name="Équipes", value="\n".join(team_names), inline=True)
 
@@ -578,7 +597,7 @@ class Smashtheque(commands.Cog):
             await generic_error(ctx, r)
             return
 
-    async def do_addplayer(self, ctx, pseudo, perso, team, discord_id):
+    async def do_addplayer(self, ctx:discord.Interaction, pseudo, perso, team, discord_id):
 
         # fill characters cache if empty
         await self.fetch_characters_if_needed()
@@ -592,12 +611,13 @@ class Smashtheque(commands.Cog):
 
         current_stage = 0
         char = await self.find_character_by_name(perso)
-        # init de la réponse
+        team = await self.find_team_by_name(team)
+        
         response = {
             "name": pseudo,
-            "character_ids": char,
-            "creator_discord_id": "",
-            "team_ids": []
+            "character_ids": [char],
+            "creator_discord_id": ctx.user.id,
+            "team_ids": [team] if team is not None else []
         }
 
         # make sure some characters were provided
@@ -608,7 +628,7 @@ class Smashtheque(commands.Cog):
             return
 
         # now the player is filled with attributes
-        response["creator_discord_id"] = str(ctx.author.id)
+        response["creator_discord_id"] = str(ctx.user.id)
         response["name"] = response["name"].rstrip()
         await self.confirm_create_player(ctx, response)
 
@@ -680,7 +700,8 @@ class Smashtheque(commands.Cog):
         discord_user = format_discord_user(discord_id)
         await self.show_confirmation(ctx, f"Le compte Discord {discord_user} a été dissocié du joueur {player_name}.", link=f"{self.api_base_url}/players/{player['id']}")
 
-    async def do_showplayer(self, ctx: commands.Context, target_member, ephemeral = False):
+    async def do_showplayer(self, ctx: discord.Interaction, target_member, ephemeral = False):
+        print("debug print")
         discord_id = target_member.id
         player = await self.find_player_by_discord_id(discord_id)
         if player == None:
@@ -692,12 +713,12 @@ class Smashtheque(commands.Cog):
             url=f"{self.api_base_url}/players/{player['id']}"
         )
         self.embed_player(embed, player)
-        embed.set_footer(text=f"Pour {ctx.author}", icon_url=ctx.author.display_avatar.url)
+        embed.set_footer(text=f"Pour {ctx.user}", icon_url=ctx.user.display_avatar.url)
         if ephemeral:
             view = st_views.makeEphemeralPublic()
-            await ctx.respond(embed=embed, ephemeral = True, view = view)
+            await ctx.response.send_message(embed=embed, ephemeral = True, view = view)
             return
-        await ctx.respond(embed=embed, ephemeral = False)
+        await ctx.response.send_message(embed=embed, ephemeral = False)
 
     async def do_findplayer(self, ctx, name):
         players = await self.find_players_by_name_like(name)
@@ -1221,19 +1242,6 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
-    @app_commands.command(name="associer")
-    @app_commands.autocomplete(pseudo=autocomplete_st_name)
-    @is_admin_smashtheque()
-    async def associer(self, intteraction: discord.Interaction, pseudo:str, discord_id: str):
-        """cette commande va vous permettre d'associer un compte Discord à un joueur de la Smashthèque.
-        \n\nVous devez préciser son pseudo et son ID Discord.
-        \n\n\nExemples : \n- associer Pixel 608210202952466464\n- associer red 332894758076678144\n"""
-
-        try:
-            await self.do_link(intteraction, pseudo, discord_id)
-        except:
-            rollbar.report_exc_info()
-            raise
 
     @app_commands.command(name="jenesuispas")
     async def jenesuispas(self, intteraction: discord.Interaction):
@@ -1275,7 +1283,12 @@ class Smashtheque(commands.Cog):
     @app_commands.command(name="quisuisje")
     async def quisuisje(self, intteraction: discord.Interaction):
         """Permet de savoir qui est le joueur de la Smashthèque associé à votre compte Discord."""
+
+        await self.do_showplayer(intteraction, intteraction.user)
+        return
+        await intteraction.response.defer()
         try:
+            print("what")
             await self.do_showplayer(intteraction, intteraction.author)
         except:
             rollbar.report_exc_info()
@@ -1375,6 +1388,25 @@ class Smashtheque(commands.Cog):
             rollbar.report_exc_info()
             raise
 
+    # note : So the admins are able to use app commands in the guild, 
+    # but to prevent non admins from seing these in other servers, 
+    # admin commands are hybrid_commands. In smashtheque guild they are app commands. 
+    # In other server they are text commands. 
+    @commands.hybrid_command(name="associer")
+    @app_commands.autocomplete(pseudo=autocomplete_st_name)
+    @app_commands.guilds(SMASHTHEQUE_GUILD_ID)
+    @commands.check(is_admin_smashtheque)
+    async def associer(self, intteraction: discord.Interaction, pseudo:str, discord_id: str):
+        """cette commande va vous permettre d'associer un compte Discord à un joueur de la Smashthèque.
+        \n\nVous devez préciser son pseudo et son ID Discord.
+        \n\n\nExemples : \n- associer Pixel 608210202952466464\n- associer red 332894758076678144\n"""
+
+        try:
+            await self.do_link(intteraction, pseudo, discord_id)
+        except:
+            rollbar.report_exc_info()
+            raise
+
     @is_admin_smashtheque()
     @app_commands.command()
     async def addadmin(self, intteraction: discord.Interaction, member:discord.Member):
@@ -1400,6 +1432,7 @@ class Smashtheque(commands.Cog):
         except:
             rollbar.report_exc_info()
             raise
+
     @is_admin_smashtheque()
     @app_commands.command(name="inserttwitter")
     async def inserertwitter(self, intteraction: discord.Interaction, lien: str, discord_id: int):

@@ -1,6 +1,6 @@
 import discord
 
-async def respond_or_edit(ctx: discord.ext.commands.Context, text = None, embed=None, attachments=None, view=None):
+async def respond_or_edit(ctx: discord.Interaction, text = None, embed=None, attachments=None, view=None):
     """Check if the interaction has already been replied. If so, edit the message, else respond """
     kwargs = {}
     if text:
@@ -12,7 +12,7 @@ async def respond_or_edit(ctx: discord.ext.commands.Context, text = None, embed=
     if view:
         kwargs['view'] = view
     
-    if ctx.interaction.response.is_done():
+    if ctx.response.is_done():
         kwargs = {"content": "", "embed": None, "view": None}
         if text:
             kwargs['content'] = text
@@ -22,6 +22,6 @@ async def respond_or_edit(ctx: discord.ext.commands.Context, text = None, embed=
             raise Exception("Attachments are not supported for editing")
         if view:
             kwargs['view'] = view
-        await ctx.interaction.edit_original_message(**kwargs)
+        await ctx.edit_original_response(**kwargs)
     else:
-        await ctx.respond(**kwargs)
+        await ctx.response.send_message(**kwargs)

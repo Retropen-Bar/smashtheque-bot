@@ -27,15 +27,15 @@ class AskConfirmation(discord.ui.View):
     # We also send the user an ephemeral message that we're confirming their choice.
     @discord.ui.button(label='Confirmer', style=discord.ButtonStyle.green, emoji=discord.PartialEmoji(name="emoji_yes", id=867082117375459340))
     async def confirm(self, button: discord.ui.Button, interaction: discord.Interaction):
-        await interaction.response.pong()
         self.value = True
+        self.interaction = interaction
         self.stop()
 
     # This one is similar to the confirmation button except sets the inner value to `False`
     @discord.ui.button(label='Annuler', style=discord.ButtonStyle.grey, emoji=discord.PartialEmoji(name="emoji_no", id=867082117782568980))
-    async def cancel(self, button: discord.ui.Button, interaction: discord.Interaction):
-        await interaction.response.pong()
+    async def cancel(self, interaction: discord.Interaction, button:discord.ui.Button): 
         self.value = False
+        self.interaction = interaction
         self.stop()
 
 
@@ -63,19 +63,19 @@ class AskChoice(discord.ui.View):
 
         self.add_item(CancellButton(label="Annuler", number = -1, style=ButtonStyle.danger))
 
-async def ask_confirmation(ctx, embed):
+async def ask_confirmation(ctx: discord.Interaction, embed):
     view = AskConfirmation()
     temp_message = await respond_or_edit(ctx, embed=embed, view=view)
     # Wait for the View to stop listening for input...
     await view.wait()
     if view.value is None:
         
-        await ctx.respond("Commande annulée")
+        await ctx.followup.send("Commande annulée")
         return False
     if view.value is True:
         return True
     else:
-        await ctx.respond("Commande annulée")
+        await view.interaction.response.send_message("Commande annulée")
         return False
 
 async def ask_choice(ctx, embed:discord.Embed, choices: list):
